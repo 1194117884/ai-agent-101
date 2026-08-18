@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>30 天 Agent Engineering 实战训练营 · 修订版</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #121621;
+      --panel2: #171c29;
+      --muted: #8d98aa;
+      --text: #eef3ff;
+      --line: #262d3c;
+      --accent: #7c9cff;
+      --accent2: #7ce7c5;
+      --warn: #ffcf70;
+      --danger: #ff7b8a;
+      --p1: #7c9cff;
+      --p2: #8b7cff;
+      --p3: #4fc4b4;
+      --p4: #ffb85c;
+      --p5: #ff7b8a;
+      --shadow: 0 14px 40px rgba(0,0,0,.28);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: radial-gradient(1100px 700px at 12% -10%, rgba(124,156,255,.12), transparent 60%), var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    a { color: #a9bdff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .app {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid var(--line);
+      background: rgba(11,13,18,.88);
+      backdrop-filter: blur(16px);
+      padding: 28px 16px;
+      overflow-y: auto;
+    }
+    .brand h1 { font-size: 17px; margin-bottom: 4px; }
+    .brand p { font-size: 12px; color: var(--muted); }
+    nav { margin-top: 28px; }
+    nav a {
+      display: block;
+      padding: 9px 12px;
+      border-radius: 10px;
+      color: #c5cede;
+      font-size: 13.5px;
+      margin: 2px 0;
+      transition: .15s;
+    }
+    nav a:hover { background: var(--panel2); color: #fff; text-decoration: none; }
+    nav a.active { background: rgba(124,156,255,.15); color: var(--accent); }
+    main {
+      padding: 40px clamp(20px, 4vw, 56px) 80px;
+      max-width: 1100px;
+    }
+    .hero {
+      padding: 36px;
+      border: 1px solid #2a3347;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(124,156,255,.13), rgba(124,231,197,.05) 55%, rgba(255,184,92,.04));
+      box-shadow: var(--shadow);
+      margin-bottom: 48px;
+    }
+    .hero .tag {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: .04em;
+      color: var(--accent2);
+      background: rgba(124,231,197,.1);
+      padding: 4px 10px;
+      border-radius: 99px;
+      margin-bottom: 14px;
+    }
+    .hero h1 {
+      font-size: clamp(26px, 4vw, 36px);
+      line-height: 1.25;
+      margin-bottom: 14px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero .desc {
+      color: var(--muted);
+      max-width: 720px;
+      font-size: 15px;
+      margin-bottom: 22px;
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .stat {
+      background: rgba(0,0,0,.25);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 16px;
+      min-width: 110px;
+    }
+    .stat b { display: block; font-size: 22px; color: var(--accent); }
+    .stat span { font-size: 12px; color: var(--muted); }
+    .warn-box {
+      margin-top: 22px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--warn);
+      background: rgba(255,207,112,.08);
+      border-radius: 0 10px 10px 0;
+      font-size: 13.5px;
+      color: #e8d9a8;
+    }
+    section { margin-bottom: 56px; scroll-margin-top: 24px; }
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .section-title h2 { font-size: 24px; }
+    .section-title .sub { color: var(--muted); font-size: 14px; }
+    .stages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .stage-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: var(--panel);
+      transition: .15s;
+    }
+    .stage-card:hover { border-color: #3a455c; }
+    .stage-card .days {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .stage-card h3 { font-size: 15px; margin-bottom: 6px; }
+    .stage-card p { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+    .stage-card.s1 { border-top: 3px solid var(--p1); }
+    .stage-card.s2 { border-top: 3px solid var(--p2); }
+    .stage-card.s3 { border-top: 3px solid var(--p3); }
+    .stage-card.s4 { border-top: 3px solid var(--p4); }
+    .stage-card.s5 { border-top: 3px solid var(--p5); }
+
+    /* Stage detail blocks */
+    .stage-block {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .stage-header {
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .stage-num {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px;
+      color: #0b0d12;
+    }
+    .s1 .stage-num { background: var(--p1); }
+    .s2 .stage-num { background: var(--p2); }
+    .s3 .stage-num { background: var(--p3); }
+    .s4 .stage-num { background: var(--p4); }
+    .s5 .stage-num { background: var(--p5); }
+    .stage-header h3 { font-size: 18px; }
+    .stage-header .range { font-size: 13px; color: var(--muted); margin-left: auto; }
+    .stage-body { padding: 20px 22px 24px; }
+    .goals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 700px) { .goals { grid-template-columns: 1fr; } }
+    .goal-box {
+      background: var(--panel2);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .goal-box h4 {
+      font-size: 13px;
+      color: var(--accent2);
+      margin-bottom: 8px;
+      letter-spacing: .02em;
+    }
+    .goal-box ul { padding-left: 18px; font-size: 13.5px; color: #d0d7e8; }
+    .goal-box li { margin: 4px 0; }
+    .readings {
+      margin-top: 8px;
+    }
+    .readings h4 {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .read-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-item {
+      font-size: 12.5px;
+      padding: 5px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.2);
+    }
+    .tag-item.must { border-color: rgba(124,231,197,.35); color: #9eebd4; }
+    .tag-item.study { border-color: rgba(124,156,255,.35); color: #b3c5ff; }
+    .tag-item.interest { border-color: rgba(255,184,92,.3); color: #ffd9a0; }
+    .lab-note {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(124,156,255,.07);
+      border-radius: 10px;
+      font-size: 13.5px;
+      color: #c5d0f0;
+    }
+
+    /* Reading matrix */
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-top: 12px;
+    }
+    .matrix th, .matrix td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .matrix th {
+      background: var(--panel2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12.5px;
+    }
+    .matrix td { vertical-align: top; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      margin-right: 4px;
+    }
+    .badge.must { background: rgba(124,231,197,.15); color: #7ce7c5; }
+    .badge.study { background: rgba(124,156,255,.15); color: #7c9cff; }
+    .badge.interest { background: rgba(255,184,92,.15); color: #ffb85c; }
+
+    .philosophy {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 800px) { .philosophy { grid-template-columns: 1fr; } }
+    .ph-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .ph-card h4 { font-size: 15px; margin-bottom: 8px; color: var(--accent2); }
+    .ph-card p { font-size: 13.5px; color: var(--muted); }
+
+    .project-path {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .proj {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+    .proj strong { color: var(--accent); }
+    .arrow { color: var(--muted); font-size: 18px; }
+
+    .footer-note {
+      margin-top: 48px;
+      padding: 20px;
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 13.5px;
+      text-align: center;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin: 12px 0 20px;
+      font-size: 13px;
+    }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 3px; }
+    .dot.must { background: #7ce7c5; }
+    .dot.study { background: #7c9cff; }
+    .dot.interest { background: #ffb85c; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <h1>Agent Engineering</h1>
+        <p>30 天实战训练营 · 修订版</p>
+      </div>
+      <nav>
+        <a href="#overview" class="active">总览与哲学</a>
+        <a href="#stages">五阶段总览</a>
+        <a href="#s1">阶段 1 · 基础</a>
+        <a href="#s2">阶段 2 · Context</a>
+        <a href="#s3">阶段 3 · Reasoning</a>
+        <a href="#s4">阶段 4 · Eval &amp; Harness</a>
+        <a href="#s5">阶段 5 · Capstone</a>
+        <a href="#readings">阅读材料分层</a>
+        <a href="#projects">项目迁移路径</a>
+        <a href="#matrix">材料对照表</a>
+      </nav>
+    </aside>
+
+    <main>
+      <!-- Hero -->
+      <div class="hero" id="overview">
+        <div class="tag">30-DAY BUILD → MEASURE → LEARN LOOP</div>
+        <h1>从「会调 LLM API」到能设计<br><span>Agent Runtime / Harness</span></h1>
+        <p class="desc">
+          默认每天 4 小时：约 25% 阅读 · 50% 编码 · 20% Eval/Debug · 5% 复盘。<br>
+          核心策略是维护一个贯穿 30 天的 <strong>Agent Lab</strong>，再把同一个 Runtime 迁移到真实项目中，避免「读了很多框架但没形成系统能力」。
+        </p>
+        <div class="stats">
+          <div class="stat"><b>30</b><span>Days</span></div>
+          <div class="stat"><b>5</b><span>学习阶段</span></div>
+          <div class="stat"><b>18</b><span>核心知识点</span></div>
+          <div class="stat"><b>4</b><span>真实项目迁移</span></div>
+          <div class="stat"><b>1</b><span>持续演进的 Harness</span></div>
+        </div>
+        <div class="warn-box">
+          <strong>非常重要：</strong>30 天内不追求「学完 LangChain / LangGraph / CrewAI / AutoGen / ADK」。先用最薄的 SDK 或直接 API 理解 loop、tool、state、eval，再把框架当实现选择。Multi-Agent 放在第 17 天以后，因为它不是起点。
+        </div>
+      </div>
+
+      <!-- Philosophy -->
+      <section>
+        <div class="section-title">
+          <h2>教学哲学</h2>
+          <span class="sub">为什么这样设计</span>
+        </div>
+        <div class="philosophy">
+          <div class="ph-card">
+            <h4>能力闭环优先于知识覆盖</h4>
+            <p>读书不是主线，能闭环才是主线。每个阶段都必须产出可运行、可评估的代码，而不是停留在「我看懂了」。</p>
+          </div>
+          <div class="ph-card">
+            <h4>一个 Runtime，多次迁移</h4>
+            <p>不是并行做四个完整产品，而是把同一组 Agent 原语反复迁移。每次迁移都是一次「抽象是否正确」的测试。</p>
+          </div>
+          <div class="ph-card">
+            <h4>Eval 从第一天开始</h4>
+            <p>没有评估就没有工程。Day 1 就要求最简 eval，后续阶段只是在升级评估体系的复杂度。</p>
+          </div>
+          <div class="ph-card">
+            <h4>Context 是一等公民</h4>
+            <p>把 Context 当作有限资源来管理，是 2025–2026 Agent 工程的核心能力。本课程把它提升到与 loop / tool 同等重要的位置。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stages Overview -->
+      <section id="stages">
+        <div class="section-title">
+          <h2>五阶段总览</h2>
+          <span class="sub">修订后的节奏</span>
+        </div>
+        <div class="stages">
+          <div class="stage-card s1">
+            <div class="days">DAY 1–6</div>
+            <h3>基础与单 Agent</h3>
+            <p>mental model · loop · tools · 最简 eval 与 trace</p>
+          </div>
+          <div class="stage-card s2">
+            <div class="days">DAY 7–11</div>
+            <h3>Context Engineering</h3>
+            <p>稀缺资源管理 · Tool UX · Skills · 渐进披露</p>
+          </div>
+          <div class="stage-card s3">
+            <div class="days">DAY 12–17</div>
+            <h3>Reasoning · Reliability</h3>
+            <p>ReAct · recovery · 多步编排 · Multi-Agent 入门</p>
+          </div>
+          <div class="stage-card s4">
+            <div class="days">DAY 18–24</div>
+            <h3>Eval · Harness · Security</h3>
+            <p>完整评估体系 · 长运行 Harness · Containment</p>
+          </div>
+          <div class="stage-card s5">
+            <div class="days">DAY 25–30</div>
+            <h3>Capstone 产品化</h3>
+            <p>真实迁移 · Ablation · 最终 Benchmark</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage 1 -->
+      <section id="s1">
+        <div class="stage-block s1">
+          <div class="stage-header">
+            <div class="stage-num">1</div>
+            <h3>基础与单 Agent Runtime</h3>
+            <span class="range">Day 1 – 6</span>
+          </div>
+          <div class="stage-body">
+            <div class="goals">
+              <div class="goal-box">
+                <h4>学习目标</h4>
+                <ul>
+                  <li>建立正确的 Agent 心智模型（Workflow vs Agent）</li>
+                  <li>用最薄实现跑通完整 loop：感知 → 推理 → 行动 → 观察</li>
+                  <li>理解 Tool 的本质与描述质量的重要性</li>
+                  <li>从第一天就建立「可评估」的习惯</li>
+                </ul>
+              </div>
+              <div class="goal-box">
+                <h4>关键产出</h4>
+                <ul>
+                  <li>一个可运行的单 Agent Runtime（直接 API 或最薄 SDK）</li>
+                  <li>至少 3 个高质量 Tool + 描述</li>
+                  <li>最简 Eval 套件（固定测试集 + pass rate + 基础 trace）</li>
+                  <li>Lab 日志：每天记录「今天改了什么、为什么、结果如何」</li>
+                </ul>
+              </div>
+            </div>
+            <div class="readings">
+              <h4>阅读材料</h4>
+              <div class="read-tags">
+                <span class="tag-item must">必读 · Building effective agents (Anthropic)</span>
+                <span class="tag-item must">必读 · ReAct 论文</span>
+                <span class="tag-item must">必读 · Agentic Design Patterns（Prompt Chaining / Tool Use 章节）</span>
+                <span class="tag-item study">研学 · OpenAI Practical Guide（前半部分）</span>
+                <span class="tag-item study">研学 · Toolformer 论文</span>
+              </div>
+            </div>
+            <div class="lab-note">
+              <strong>Lab 重点：</strong>不要追求功能多，追求「loop 清晰、tool 描述干净、每次运行都能留下可复现的 trace」。这是后面所有阶段的地基。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage 2 -->
+      <section id="s2">
+        <div class="stage-block s2">
+          <div class="stage-header">
+            <div class="stage-num">2</div>
+            <h3>Context Engineering 核心</h3>
+            <span class="range">Day 7 – 11</span>
+          </div>
+          <div class="stage-body">
+            <div class="goals">
+              <div class="goal-box">
+                <h4>学习目标</h4>
+                <ul>
+                  <li>把 Context 当作有限、昂贵、会衰减的资源来管理</li>
+                  <li>掌握 Tool 设计的 UX 原则（命名、描述、返回信号、token 效率）</li>
+                  <li>理解 Agent Skills 的渐进披露与组合方式</li>
+                  <li>学会在有限窗口内保持高信号密度</li>
+                </ul>
+              </div>
+              <div class="goal-box">
+                <h4>关键产出</h4>
+                <ul>
+                  <li>重构后的 Tool 层（描述更精准、返回更干净）</li>
+                  <li>一套可加载的 Skills（至少 2 个）</li>
+                  <li>Context 管理策略文档（什么该留、什么该清、什么该外置）</li>
+                  <li>对比实验：优化前后 token 消耗与成功率变化</li>
+                </ul>
+              </div>
+            </div>
+            <div class="readings">
+              <h4>阅读材料</h4>
+              <div class="read-tags">
+                <span class="tag-item must">必读 · Effective context engineering for AI agents</span>
+                <span class="tag-item must">必读 · Writing effective tools for agents</span>
+                <span class="tag-item must">必读 · Equipping agents with Agent Skills</span>
+                <span class="tag-item must">必读 · MCP Spec 2026-07-28（Architecture / Tools / Resources）</span>
+                <span class="tag-item study">研学 · Agentic Design Patterns（Memory 相关章节）</span>
+                <span class="tag-item interest">兴趣 · Voyager（skill library 部分）</span>
+              </div>
+            </div>
+            <div class="lab-note">
+              <strong>Lab 重点：</strong>这一阶段是整个课程的战略高地。宁可少做功能，也要把「Context 如何被管理」想清楚、写清楚、测清楚。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage 3 -->
+      <section id="s3">
+        <div class="stage-block s3">
+          <div class="stage-header">
+            <div class="stage-num">3</div>
+            <h3>Reasoning · Reliability · 初步编排</h3>
+            <span class="range">Day 12 – 17</span>
+          </div>
+          <div class="stage-body">
+            <div class="goals">
+              <div class="goal-box">
+                <h4>学习目标</h4>
+                <ul>
+                  <li>深入理解 ReAct 循环及其在现代系统中的变体</li>
+                  <li>掌握错误恢复、重试、终止条件设计</li>
+                  <li>能做简单的多步编排与状态管理</li>
+                  <li>在第 16–17 天引入最简 Multi-Agent（orchestrator-worker）</li>
+                </ul>
+              </div>
+              <div class="goal-box">
+                <h4>关键产出</h4>
+                <ul>
+                  <li>带恢复机制的可靠 loop</li>
+                  <li>明确的终止 / 升级 / 回退策略</li>
+                  <li>一个最小可用的 orchestrator + 1–2 个 worker</li>
+                  <li>更新后的 Eval：加入多步任务与失败恢复场景</li>
+                </ul>
+              </div>
+            </div>
+            <div class="readings">
+              <h4>阅读材料</h4>
+              <div class="read-tags">
+                <span class="tag-item must">必读 · ReAct（精读）</span>
+                <span class="tag-item must">必读 · Reflexion 论文</span>
+                <span class="tag-item must">必读 · Agentic Design Patterns（Planning / Exception Handling / Multi-Agent 章节）</span>
+                <span class="tag-item study">研学 · How we built our multi-agent research system</span>
+                <span class="tag-item study">研学 · OpenAI Agents SDK · Orchestration 部分</span>
+                <span class="tag-item interest">兴趣 · SWE-agent（ACI 思想）</span>
+              </div>
+            </div>
+            <div class="lab-note">
+              <strong>Lab 重点：</strong>Multi-Agent 只做「必要的复杂度」。如果单 Agent + 好工具能解决，就不要上 Multi-Agent。第 17 天再决定是否真正引入。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage 4 -->
+      <section id="s4">
+        <div class="stage-block s4">
+          <div class="stage-header">
+            <div class="stage-num">4</div>
+            <h3>Eval · Harness · Security</h3>
+            <span class="range">Day 18 – 24</span>
+          </div>
+          <div class="stage-body">
+            <div class="goals">
+              <div class="goal-box">
+                <h4>学习目标</h4>
+                <ul>
+                  <li>建立完整的 Agent 评估体系（task / trial / grader / trace / outcome）</li>
+                  <li>掌握长运行 Agent 的 Harness 设计（initializer + worker + progress artifacts）</li>
+                  <li>理解 Containment 与 blast radius 的基本思路</li>
+                  <li>能做有意义的 Ablation 实验</li>
+                </ul>
+              </div>
+              <div class="goal-box">
+                <h4>关键产出</h4>
+                <ul>
+                  <li>可复用的 Eval Harness</li>
+                  <li>支持跨 session 的 Long-running Harness</li>
+                  <li>基础 Sandbox / 权限边界设计</li>
+                  <li>至少 2 组 Ablation 结果（去掉某组件后的性能变化）</li>
+                </ul>
+              </div>
+            </div>
+            <div class="readings">
+              <h4>阅读材料</h4>
+              <div class="read-tags">
+                <span class="tag-item must">必读 · Demystifying evals for AI agents</span>
+                <span class="tag-item must">必读 · Effective harnesses for long-running agents</span>
+                <span class="tag-item must">必读 · Harness design for long-running application development</span>
+                <span class="tag-item study">研学 · How we contain Claude across products</span>
+                <span class="tag-item study">研学 · τ-bench / AgentBench（评估方法论）</span>
+                <span class="tag-item interest">兴趣 · 完整安全与威胁模型章节（O’Reilly / Design Patterns）</span>
+              </div>
+            </div>
+            <div class="lab-note">
+              <strong>Lab 重点：</strong>这是从「能跑」到「能长期可靠跑」的关键跃迁。Harness 和 Eval 的质量将直接决定 Capstone 的上限。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage 5 -->
+      <section id="s5">
+        <div class="stage-block s5">
+          <div class="stage-header">
+            <div class="stage-num">5</div>
+            <h3>Capstone 产品化</h3>
+            <span class="range">Day 25 – 30</span>
+          </div>
+          <div class="stage-body">
+            <div class="goals">
+              <div class="goal-box">
+                <h4>学习目标</h4>
+                <ul>
+                  <li>把同一个 Runtime 迁移到至少两个真实场景</li>
+                  <li>用 Ablation 验证核心设计决策</li>
+                  <li>产出可展示的最终 Benchmark 结果与复盘</li>
+                  <li>形成自己的「Agent 工程检查清单」</li>
+                </ul>
+              </div>
+              <div class="goal-box">
+                <h4>关键产出</h4>
+                <ul>
+                  <li>迁移后的可运行系统（至少 2 个场景）</li>
+                  <li>完整的 Ablation 报告</li>
+                  <li>最终 Eval 报告 + 已知局限</li>
+                  <li>个人 Agent 工程笔记 / 检查清单</li>
+                </ul>
+              </div>
+            </div>
+            <div class="readings">
+              <h4>阅读材料</h4>
+              <div class="read-tags">
+                <span class="tag-item must">必读 · 回顾所有必读材料，形成自己的总结</span>
+                <span class="tag-item study">研学 · AI Agents in Action / Definitive Guide 中与 Production 相关的章节</span>
+                <span class="tag-item interest">兴趣 · 根据个人方向深挖（SWE / 多 Agent / 安全等）</span>
+              </div>
+            </div>
+            <div class="lab-note">
+              <strong>Lab 重点：</strong>Capstone 不是「再做一个大功能」，而是「验证你这 24 天建立的抽象是否经得起迁移和拆解」。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Readings Classification -->
+      <section id="readings">
+        <div class="section-title">
+          <h2>阅读材料分层</h2>
+          <span class="sub">必读 · 研学自读 · 兴趣方向</span>
+        </div>
+        <div class="legend">
+          <span><i class="dot must"></i> 必读（课程核心）</span>
+          <span><i class="dot study"></i> 研学自读（进阶）</span>
+          <span><i class="dot interest"></i> 兴趣方向（选修）</span>
+        </div>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th style="width:28%">材料</th>
+              <th style="width:12%">层级</th>
+              <th>建议使用方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Building effective agents (Anthropic)</td>
+              <td><span class="badge must">必读</span></td>
+              <td>Day 1 开篇，统一术语与心智模型</td>
+            </tr>
+            <tr>
+              <td>Effective context engineering</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 2 核心，反复回看</td>
+            </tr>
+            <tr>
+              <td>Writing effective tools for agents</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 2 必做实验的理论依据</td>
+            </tr>
+            <tr>
+              <td>Equipping agents with Agent Skills</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 2，理解渐进披露</td>
+            </tr>
+            <tr>
+              <td>Demystifying evals for AI agents</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 4 核心，建立评估词汇表</td>
+            </tr>
+            <tr>
+              <td>Effective harnesses + Harness design (两篇)</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 4，长运行能力的关键</td>
+            </tr>
+            <tr>
+              <td>ReAct 论文</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 1 引入，阶段 3 精读</td>
+            </tr>
+            <tr>
+              <td>MCP Specification 2026-07-28</td>
+              <td><span class="badge must">必读</span></td>
+              <td>阶段 2，只抓 Architecture / Tools / Resources</td>
+            </tr>
+            <tr>
+              <td>Agentic Design Patterns（精选章节）</td>
+              <td><span class="badge must">必读</span></td>
+              <td>按阶段查阅对应 pattern，不当教材通读</td>
+            </tr>
+            <tr>
+              <td>OpenAI Practical Guide + Agents SDK Docs</td>
+              <td><span class="badge study">研学</span></td>
+              <td>补充工程视角与 SDK 实践</td>
+            </tr>
+            <tr>
+              <td>How we built our multi-agent research system</td>
+              <td><span class="badge study">研学</span></td>
+              <td>阶段 3 后期，理解真实 multi-agent 取舍</td>
+            </tr>
+            <tr>
+              <td>How we contain Claude across products</td>
+              <td><span class="badge study">研学</span></td>
+              <td>阶段 4，安全与边界意识</td>
+            </tr>
+            <tr>
+              <td>Reflexion / Toolformer / τ-bench / AgentBench</td>
+              <td><span class="badge study">研学</span></td>
+              <td>按需精读，深化评估与反思能力</td>
+            </tr>
+            <tr>
+              <td>AI Agents in Action / Definitive Guide（全书）</td>
+              <td><span class="badge study">研学</span></td>
+              <td>系统补全工程视角，Capstone 前后阅读</td>
+            </tr>
+            <tr>
+              <td>SWE-agent / Voyager</td>
+              <td><span class="badge interest">兴趣</span></td>
+              <td>编码 Agent 或开放世界探索方向</td>
+            </tr>
+            <tr>
+              <td>完整安全 / 威胁模型 / 成本章节</td>
+              <td><span class="badge interest">兴趣</span></td>
+              <td>企业级或研究向深挖</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Project Path -->
+      <section id="projects">
+        <div class="section-title">
+          <h2>项目迁移路径</h2>
+          <span class="sub">同一个 Runtime，反复验证抽象</span>
+        </div>
+        <p style="color:var(--muted); margin-bottom:16px; font-size:14px;">
+          不是并行做四个完整产品，而是把同一组 Agent 原语迁移到不同场景。每次迁移都是一次「你的抽象是否足够好」的压力测试。
+        </p>
+        <div class="project-path">
+          <div class="proj"><strong>P0</strong> Lab 基础 Runtime</div>
+          <span class="arrow">→</span>
+          <div class="proj"><strong>P1</strong> 浏览器机械外骨骼</div>
+          <span class="arrow">→</span>
+          <div class="proj"><strong>P2</strong> 游戏素材 / 工作流</div>
+          <span class="arrow">→</span>
+          <div class="proj"><strong>P3</strong> 自媒体分镜 / 内容生产</div>
+          <span class="arrow">→</span>
+          <div class="proj"><strong>Capstone</strong> 自选真实场景 + Ablation</div>
+        </div>
+      </section>
+
+      <!-- Matrix note -->
+      <section id="matrix">
+        <div class="section-title">
+          <h2>设计说明（相对原版的调整）</h2>
+        </div>
+        <div class="philosophy">
+          <div class="ph-card">
+            <h4>1. Context Engineering 前置并升权</h4>
+            <p>原版把 Context 与 Memory 并列在 Day 7–12。修订版单独抽出 5 天，作为战略重点，因为这是当前生产 Agent 最容易踩坑、也最有杠杆的地方。</p>
+          </div>
+          <div class="ph-card">
+            <h4>2. Eval 从 Day 1 开始埋种子</h4>
+            <p>不再等到 Day 19 才系统讲评估。从第一天就要求最简 eval，后续只是升级复杂度，避免「写了很多却无法衡量」。</p>
+          </div>
+          <div class="ph-card">
+            <h4>3. Harness / Long-running 获得完整阶段</h4>
+            <p>长运行能力是区分「玩具 Agent」和「可用 Agent」的关键。修订版给足时间，并强制做跨 session 实验。</p>
+          </div>
+          <div class="ph-card">
+            <h4>4. 阅读材料分层更锋利</h4>
+            <p>明确必读 / 研学 / 兴趣三层，避免 30 天里平均用力。学生知道什么必须掌握，什么可以按兴趣深挖。</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer-note">
+        本修订版基于原 30 天大纲的优秀哲学，针对 2026 年 Agent 工程实践做了节奏与优先级调整。<br>
+        核心不变：<strong>一个 Runtime · 多次迁移 · 能力闭环 · 评估驱动</strong>。
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Simple active nav highlight
+    const sections = document.querySelectorAll('section, #overview');
+    const navLinks = document.querySelectorAll('nav a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          navLinks.forEach(link => link.classList.remove('active'));
+          const id = entry.target.id;
+          const corresponding = document.querySelector(`nav a[href="#${id}"]`);
+          if (corresponding) corresponding.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>
