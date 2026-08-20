@@ -1,0 +1,3 @@
+"use client";
+import {useState} from "react";
+export function CoachChat(){const[q,setQ]=useState("");const[a,setA]=useState("");async function ask(){const r=await fetch("/api/coach",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:q})});const d=await r.json();setA(d.error??`${d.answer}\n\n追问：${d.followUp}\n依据：${d.source}`)}return <section><h3>问老师</h3><textarea value={q} onChange={e=>setQ(e.target.value)} placeholder="例如：我不理解 tool description 和 schema 的区别"/><button onClick={ask} disabled={!q.trim()}>提问</button>{a&&<p style={{whiteSpace:"pre-line"}}>{a}</p>}</section>}

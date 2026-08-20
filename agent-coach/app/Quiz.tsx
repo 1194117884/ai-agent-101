@@ -1,0 +1,3 @@
+"use client";
+import {useEffect,useState} from "react";
+export function Quiz(){const[q,setQ]=useState<any>();const[a,setA]=useState("");const[r,setR]=useState("");useEffect(()=>{fetch("/api/quiz").then(x=>x.json()).then(setQ)},[]);async function submit(){const x=await fetch("/api/quiz",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:q.id,answer:a})});const d=await x.json();setR(d.error??`得分 ${d.score}/100：${d.feedback}`)}if(!q)return <p>正在准备小测…</p>;return <section><h3>小测</h3><p>{q.question}</p><textarea value={a} onChange={e=>setA(e.target.value)} /><button onClick={submit} disabled={!a.trim()}>提交答案</button>{r&&<p>{r}</p>}</section>}
