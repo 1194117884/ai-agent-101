@@ -14,9 +14,9 @@ npm test
 
 ## Cloudflare deployment
 
-`wrangler.jsonc` declares the built Worker entry and D1 binding. Production
-identity comes from Cloudflare Access through
-`Cf-Access-Authenticated-User-Email`.
+`wrangler.jsonc` declares the built Worker entry, D1 binding and public Google
+OAuth client ID. Production identity uses Google One Tap with a Worker-verified
+ID token and signed `HttpOnly` session cookie.
 
 ```bash
 npx wrangler login
@@ -29,9 +29,10 @@ vinext Worker entry is generated before Wrangler uploads it. Do not configure
 the hook as `wrangler deploy` by itself. To validate the complete build and
 upload bundle without publishing, run `npm run deploy:check`.
 
-Configure `AI_KEY_ENCRYPTION_SECRET` as a Worker secret. Optionally set
-`AI_ADMIN_EMAILS` to a comma-separated allowlist; otherwise every identity
-admitted by the Cloudflare Access policy can manage AI channels.
+Configure `AI_KEY_ENCRYPTION_SECRET` as a Worker secret. A separate
+`AUTH_SESSION_SECRET` is recommended; when absent, session signing derives a
+purpose-isolated key from the encryption secret. Set `AI_ADMIN_EMAILS` to the
+comma-separated Google accounts allowed to manage AI channels.
 
 ## AI channels
 

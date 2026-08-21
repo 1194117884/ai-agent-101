@@ -11,13 +11,17 @@ type Check = { id: string; label: string; status: "pass" | "warn" | "fail"; deta
 async function authorized() {
   const user = await getCloudflareUser();
   if (!user) return false;
-  const allowlist = process.env.AI_ADMIN_EMAILS?.toLowerCase().split(/[\s,;]+/).filter(Boolean) ?? [];
+  const allowlist = env.AI_ADMIN_EMAILS?.toLowerCase().split(/[\s,;]+/).filter(Boolean) ?? [];
   return allowlist.length === 0 || allowlist.includes(user.userId);
 }
 
 export async function GET() {
   if (!await authorized()) return apiError("无权查看生产验收状态。", 403, "FORBIDDEN");
-  const checks: Check[] = [{ id: "access", label: "Cloudflare Access", status: "pass", detail: "已识别受保护的登录身份。" }];
+  const checks: Check[] = [{ id: "auth", label: "Google 登录", status: "pass", detail: "已识别并验证登录会话。" }];
+
+  checks.push(env.AUTH_SESSION_SECRET || env.AI_KEY_ENCRYPTION_SECRET
+    ? { id: "session", label: "会话签名密钥", status: "pass", detail: env.AUTH_SESSION_SECRET ? "AUTH_SESSION_SECRET 已配置。" : "使用用途隔离后的 AI 加密密钥签名会话。" }
+    : { id: "session", label: "会话签名密钥", status: "fail", detail: "请配置 AUTH_SESSION_SECRET。" });
 
   const secret = env.AI_KEY_ENCRYPTION_SECRET;
   checks.push(secret?.length >= 24

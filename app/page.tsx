@@ -5,12 +5,18 @@ import { LearningState } from "./LearningState";
 import { Quiz } from "./Quiz";
 import { CurrentTask } from "./CurrentTask";
 import { ActivityHistory } from "./ActivityHistory";
+import { getCloudflareUser } from "./auth";
+import { Login } from "./Login";
+import { LogoutButton } from "./LogoutButton";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  if (!await getCloudflareUser()) return <Login />;
   return <main className="coach-shell">
     <header className="coach-nav">
       <div className="brand"><span className="brand-mark">A</span><div><strong>阿建私教</strong><small>Agent Engineering Coach</small></div></div>
-      <Link href="/admin/ai" className="admin-link">AI 渠道管理 <span>→</span></Link>
+      <div className="nav-actions"><Link href="/admin/ai" className="admin-link">AI 渠道管理 <span>→</span></Link><LogoutButton /></div>
     </header>
 
     <section className="hero-grid">

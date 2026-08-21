@@ -30,7 +30,7 @@
 | D1 初始数据 | 待交互验收 | 9 张业务表当前均为 0 条记录，需要首次登录和提交产生真实数据。 |
 | Key 加密密钥 | 通过 | Worker Secret 列表包含 `AI_KEY_ENCRYPTION_SECRET`，未读取其值。 |
 | AI 渠道与 Key | 待配置 | 生产 D1 中 `ai_channels` 和 `ai_api_keys` 当前均为 0 条。 |
-| Cloudflare Access | 待交互验收 | 需要产品负责人通过受保护域名登录后确认身份头与管理权限。 |
+| Google One Tap | 待交互验收 | 已实现 Worker 端 ID Token 验签与签名会话；等待生产域名完成首次登录。 |
 
 ## 课程模型验收
 

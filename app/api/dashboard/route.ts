@@ -5,7 +5,7 @@ import { competencies, competencyStates, conversations, evidence, learnerProfile
 
 export async function GET() {
   const user = await getCloudflareUser();
-  if (!user) return Response.json({ error: "请先通过 Cloudflare Access 登录。" }, { status: 401 });
+  if (!user) return Response.json({ error: "请先使用 Google 账号登录。" }, { status: 401 });
   const db = getDb();
   const [[profile], [task], states, recentEvidence, recentConversations] = await Promise.all([
     db.select().from(learnerProfiles).where(eq(learnerProfiles.id, user.userId)).limit(1),

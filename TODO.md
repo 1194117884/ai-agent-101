@@ -18,4 +18,5 @@
 - [x] 记录各 AI Key 的最近调用、连续失败与安全错误摘要，支持负载和故障转移观察。
 - [x] 为连续失败的 AI Key 增加自动冷却、绕过与恢复探测。
 - [x] 在管理页提供 Access、D1、加密密钥、渠道与 Key 池生产验收面板。
-- [ ] 配置 Cloudflare Access、正式域名并完成生产验收。
+- [x] 使用 Google One Tap 和签名 Cookie 替代付费 Cloudflare Access。
+- [ ] 完成 Google OAuth 来源配置与正式域名生产验收。

@@ -11,7 +11,7 @@
     "start": "vinext start",
     "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json",
     "deploy:check": "npm run build && wrangler deploy --config dist/server/wrangler.json --dry-run",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs && node --experimental-strip-types --test tests/coach-providers.test.ts tests/api-response.test.ts tests/ai-channel-validation.test.ts tests/ai-key-health.test.ts",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs && node --experimental-strip-types --test tests/coach-providers.test.ts tests/api-response.test.ts tests/ai-channel-validation.test.ts tests/ai-key-health.test.ts tests/auth-session.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "curriculum:generate": "node scripts/generate-curriculum.mjs",
