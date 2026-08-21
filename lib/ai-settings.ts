@@ -2,18 +2,8 @@ import { env } from "cloudflare:workers";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { aiApiKeys, aiChannels } from "../db/schema";
-
-export type ChannelInput = {
-  id?: string;
-  slug: string;
-  displayName: string;
-  protocol: "anthropic" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  priority: number;
-  enabled: boolean;
-  keys: { id?: string; label: string; value?: string; enabled: boolean }[];
-};
+import { ChannelValidationError, validateAIChannels, type ChannelInput } from "./ai-channel-validation";
+export type { ChannelInput } from "./ai-channel-validation";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -65,35 +55,38 @@ export async function listAIChannels() {
 }
 
 export async function saveAIChannels(inputs: ChannelInput[]) {
-  const supported = new Set(["anthropic", "openai", "deepseek", "openrouter"]);
-  if (inputs.length > supported.size) throw new Error("渠道数量超出支持范围。");
-  if (new Set(inputs.map((input) => input.slug)).size !== inputs.length) throw new Error("渠道不能重复。");
-  for (const input of inputs) {
-    if (!supported.has(input.slug)) throw new Error(`暂不支持渠道 ${input.slug}。`);
-    if ((input.slug === "anthropic") !== (input.protocol === "anthropic")) throw new Error("渠道协议与渠道类型不匹配。");
-    if (!input.displayName.trim() || !input.model.trim()) throw new Error("显示名称和模型不能为空。");
-    if (input.keys.length > 20) throw new Error("每个渠道最多配置 20 个 Key。");
-    const url = new URL(input.baseUrl);
-    if (url.protocol !== "https:" || url.username || url.password) throw new Error("API 地址必须是无账号信息的 HTTPS 地址。");
-  }
+  validateAIChannels(inputs);
   const db = getDb();
+  const [storedChannels, storedKeys] = await Promise.all([
+    db.select({ id: aiChannels.id, slug: aiChannels.slug }).from(aiChannels),
+    db.select({ id: aiApiKeys.id, channelId: aiApiKeys.channelId }).from(aiApiKeys),
+  ]);
+  const channelsById = new Map(storedChannels.map((channel) => [channel.id, channel]));
+  const keysById = new Map(storedKeys.map((key) => [key.id, key]));
+  for (const input of inputs) {
+    if (input.id && (!channelsById.has(input.id) || channelsById.get(input.id)?.slug !== input.slug.trim().toLowerCase())) throw new ChannelValidationError("渠道标识无效，请刷新后重试。");
+    for (const key of input.keys) if (key.id && keysById.get(key.id)?.channelId !== input.id) throw new ChannelValidationError("Key 不属于当前渠道，请刷新后重试。");
+  }
+
+  const writes = [];
   for (const input of inputs) {
     const id = input.id ?? crypto.randomUUID();
-    const channel = { id, slug: input.slug.trim().toLowerCase(), displayName: input.displayName.trim(), protocol: input.protocol, baseUrl: input.baseUrl.trim(), model: input.model.trim(), priority: Math.max(0, Math.round(input.priority)), enabled: input.enabled, updatedAt: new Date().toISOString() };
-    await db.insert(aiChannels).values(channel).onConflictDoUpdate({ target: aiChannels.id, set: channel });
-    const existing = await db.select({ id: aiApiKeys.id }).from(aiApiKeys).where(eq(aiApiKeys.channelId, id));
+    const channel = { id, slug: input.slug.trim().toLowerCase(), displayName: input.displayName.trim(), protocol: input.protocol, baseUrl: input.baseUrl.trim(), model: input.model.trim(), priority: Math.round(input.priority), enabled: input.enabled, updatedAt: new Date().toISOString() };
+    writes.push(db.insert(aiChannels).values(channel).onConflictDoUpdate({ target: aiChannels.id, set: channel }));
+    const existing = storedKeys.filter((key) => key.channelId === id);
     const retained = new Set(input.keys.flatMap((key) => key.id ? [key.id] : []));
-    for (const oldKey of existing) if (!retained.has(oldKey.id)) await db.delete(aiApiKeys).where(eq(aiApiKeys.id, oldKey.id));
+    for (const oldKey of existing) if (!retained.has(oldKey.id)) writes.push(db.delete(aiApiKeys).where(eq(aiApiKeys.id, oldKey.id)));
     for (const key of input.keys) {
       if (key.id) {
         const update: { label: string; enabled: boolean; updatedAt: string; encryptedKey?: string; keyHint?: string } = { label: key.label.trim(), enabled: key.enabled, updatedAt: new Date().toISOString() };
         if (key.value?.trim()) { update.encryptedKey = await encrypt(key.value.trim()); update.keyHint = hint(key.value.trim()); }
-        await db.update(aiApiKeys).set(update).where(eq(aiApiKeys.id, key.id));
+        writes.push(db.update(aiApiKeys).set(update).where(eq(aiApiKeys.id, key.id)));
       } else if (key.value?.trim()) {
-        await db.insert(aiApiKeys).values({ id: crypto.randomUUID(), channelId: id, label: key.label.trim() || "默认 Key", encryptedKey: await encrypt(key.value.trim()), keyHint: hint(key.value.trim()), enabled: key.enabled });
+        writes.push(db.insert(aiApiKeys).values({ id: crypto.randomUUID(), channelId: id, label: key.label.trim(), encryptedKey: await encrypt(key.value.trim()), keyHint: hint(key.value.trim()), enabled: key.enabled }));
       }
     }
   }
+  if (writes.length) await db.batch(writes as [typeof writes[number], ...typeof writes[number][]]);
   return listAIChannels();
 }
 

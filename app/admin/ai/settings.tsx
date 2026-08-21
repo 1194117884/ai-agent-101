@@ -15,9 +15,10 @@ const presets: Record<string, Omit<Channel, "keys" | "priority" | "enabled">> = 
 export function AISettings() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
 
-  useEffect(() => { fetch("/api/admin/ai-channels").then((r) => r.json()).then((data) => { setChannels(data.channels ?? []); setNotice(data.error ?? ""); }).finally(() => setLoading(false)); }, []);
+  useEffect(() => { fetch("/api/admin/ai-channels").then((r) => r.json()).then((data) => { setChannels(data.channels ?? []); setNotice(data.error ?? ""); }).catch(() => setNotice("渠道配置加载失败，请刷新重试。")).finally(() => setLoading(false)); }, []);
   const update = (index: number, patch: Partial<Channel>) => setChannels((items) => items.map((item, i) => i === index ? { ...item, ...patch } : item));
   const addChannel = (slug: string) => { const preset = presets[slug]; if (!preset || channels.some((channel) => channel.slug === slug)) return; setChannels([...channels, { ...preset, priority: (channels.length + 1) * 10, enabled: true, keys: [] }]); };
   const addKey = (index: number) => update(index, { keys: [...channels[index].keys, { label: `Key ${channels[index].keys.length + 1}`, value: "", enabled: true }] });
@@ -25,11 +26,16 @@ export function AISettings() {
   const removeKey = (channelIndex: number, keyIndex: number) => update(channelIndex, { keys: channels[channelIndex].keys.filter((_, index) => index !== keyIndex) });
 
   async function save() {
+    if (saving) return;
+    setSaving(true);
     setNotice("保存中…");
-    const response = await fetch("/api/admin/ai-channels", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ channels }) });
-    const data = await response.json();
-    if (response.ok) { setChannels(data.channels); setNotice("配置已保存并立即生效。Key 明文不会再次显示。"); }
-    else setNotice(data.error ?? "保存失败。");
+    try {
+      const response = await fetch("/api/admin/ai-channels", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ channels }) });
+      const data = await response.json();
+      if (response.ok) { setChannels(data.channels); setNotice("配置已原子保存并立即生效。Key 明文不会再次显示。"); }
+      else setNotice(data.error ?? "保存失败，原配置未被修改。");
+    } catch { setNotice("保存服务暂时不可用，原配置未被修改。"); }
+    finally { setSaving(false); }
   }
 
   async function removeChannel(index: number) {
@@ -45,7 +51,7 @@ export function AISettings() {
   if (loading) return <main className="admin-shell"><p>正在读取渠道配置…</p></main>;
   const available = Object.keys(presets).filter((slug) => !channels.some((channel) => channel.slug === slug));
   return <main className="admin-shell">
-    <header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>AI 渠道管理</h1><p>统一管理模型渠道、调用优先级与 Key 池。数字越小，渠道越先被调用。</p></div><button className="primary-button" onClick={save}>保存全部配置</button></header>
+    <header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>AI 渠道管理</h1><p>统一管理模型渠道、调用优先级与 Key 池。数字越小，渠道越先被调用。</p></div><button className="primary-button" onClick={save} disabled={saving}>{saving ? "保存中…" : "保存全部配置"}</button></header>
     <section className="security-note"><strong>安全约定</strong><span>Key 使用 AES-GCM 加密保存；后台仅显示掩码。替换 Key 时输入新值，留空则保持原值。</span></section>
     <div className="channel-list">{channels.map((channel, index) => <section className="channel-card" key={channel.id ?? channel.slug}>
       <div className="channel-title"><div><span className={`status-dot ${channel.enabled ? "active" : ""}`} /><h2>{channel.displayName}</h2><code>{channel.slug}</code></div><label className="switch-label"><input type="checkbox" checked={channel.enabled} onChange={(event) => update(index, { enabled: event.target.checked })} />启用</label></div>

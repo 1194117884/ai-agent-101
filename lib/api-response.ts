@@ -1,4 +1,4 @@
-export type ApiErrorCode = "AUTH_REQUIRED" | "INVALID_INPUT" | "NOT_FOUND" | "CONFLICT" | "DATABASE_ERROR";
+export type ApiErrorCode = "AUTH_REQUIRED" | "FORBIDDEN" | "INVALID_INPUT" | "NOT_FOUND" | "CONFLICT" | "DATABASE_ERROR";
 
 export function apiError(error: string, status: number, code: ApiErrorCode) {
   return Response.json({ error, code }, { status });
