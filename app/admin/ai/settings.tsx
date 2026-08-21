@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { isKeyCoolingDown } from "../../../lib/ai-key-health";
 
 type KeyItem = { id?: string; label: string; value?: string; keyHint?: string; enabled: boolean; failureCount?: number; lastUsedAt?: string | null; lastError?: string | null };
 type Channel = { id?: string; slug: string; displayName: string; protocol: "anthropic" | "openai-compatible"; baseUrl: string; model: string; priority: number; enabled: boolean; keys: KeyItem[] };
+type Readiness = { ready: boolean; checkedAt: string; checks: { id: string; label: string; status: "pass" | "warn" | "fail"; detail: string }[] };
 
 function keyHealth(key: KeyItem) {
   if (!key.id) return "尚未保存";
@@ -26,8 +27,10 @@ export function AISettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [readiness, setReadiness] = useState<Readiness>();
 
-  useEffect(() => { fetch("/api/admin/ai-channels").then((r) => r.json()).then((data) => { setChannels(data.channels ?? []); setNotice(data.error ?? ""); }).catch(() => setNotice("渠道配置加载失败，请刷新重试。")).finally(() => setLoading(false)); }, []);
+  const loadReadiness = useCallback(() => fetch("/api/admin/readiness").then((r) => r.json()).then((data) => { if (data.checks) setReadiness(data); }).catch(() => setNotice("生产验收状态读取失败。")), []);
+  useEffect(() => { Promise.all([fetch("/api/admin/ai-channels").then((r) => r.json()).then((data) => { setChannels(data.channels ?? []); setNotice(data.error ?? ""); }), loadReadiness()]).catch(() => setNotice("渠道配置加载失败，请刷新重试。")).finally(() => setLoading(false)); }, [loadReadiness]);
   const update = (index: number, patch: Partial<Channel>) => setChannels((items) => items.map((item, i) => i === index ? { ...item, ...patch } : item));
   const addChannel = (slug: string) => { const preset = presets[slug]; if (!preset || channels.some((channel) => channel.slug === slug)) return; setChannels([...channels, { ...preset, priority: (channels.length + 1) * 10, enabled: true, keys: [] }]); };
   const addKey = (index: number) => update(index, { keys: [...channels[index].keys, { label: `Key ${channels[index].keys.length + 1}`, value: "", enabled: true }] });
@@ -41,7 +44,7 @@ export function AISettings() {
     try {
       const response = await fetch("/api/admin/ai-channels", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ channels }) });
       const data = await response.json();
-      if (response.ok) { setChannels(data.channels); setNotice("配置已原子保存并立即生效。Key 明文不会再次显示。"); }
+      if (response.ok) { setChannels(data.channels); setNotice("配置已原子保存并立即生效。Key 明文不会再次显示。"); await loadReadiness(); }
       else setNotice(data.error ?? "保存失败，原配置未被修改。");
     } catch { setNotice("保存服务暂时不可用，原配置未被修改。"); }
     finally { setSaving(false); }
@@ -62,6 +65,7 @@ export function AISettings() {
   return <main className="admin-shell">
     <header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>AI 渠道管理</h1><p>统一管理模型渠道、调用优先级与 Key 池。数字越小，渠道越先被调用。</p></div><button className="primary-button" onClick={save} disabled={saving}>{saving ? "保存中…" : "保存全部配置"}</button></header>
     <section className="security-note"><strong>安全约定</strong><span>Key 使用 AES-GCM 加密保存；后台仅显示掩码。替换 Key 时输入新值，留空则保持原值。</span></section>
+    {readiness && <section className="readiness-panel"><div className="readiness-heading"><div><h2>生产验收</h2><p>{readiness.ready ? "基础运行条件已满足" : "仍有阻塞项需要处理"}</p></div><button className="secondary-button" onClick={loadReadiness}>重新检查</button></div><div className="readiness-grid">{readiness.checks.map((check) => <div className={`readiness-check ${check.status}`} key={check.id}><span>{check.status === "pass" ? "✓" : check.status === "warn" ? "!" : "×"}</span><div><strong>{check.label}</strong><small>{check.detail}</small></div></div>)}</div></section>}
     <div className="channel-list">{channels.map((channel, index) => <section className="channel-card" key={channel.id ?? channel.slug}>
       <div className="channel-title"><div><span className={`status-dot ${channel.enabled ? "active" : ""}`} /><h2>{channel.displayName}</h2><code>{channel.slug}</code></div><label className="switch-label"><input type="checkbox" checked={channel.enabled} onChange={(event) => update(index, { enabled: event.target.checked })} />启用</label></div>
       <div className="field-grid"><label>显示名称<input value={channel.displayName} onChange={(event) => update(index, { displayName: event.target.value })} /></label><label>优先级<input type="number" min="0" value={channel.priority} onChange={(event) => update(index, { priority: Number(event.target.value) })} /></label><label className="wide">API 地址<input value={channel.baseUrl} onChange={(event) => update(index, { baseUrl: event.target.value })} /></label><label className="wide">模型<input value={channel.model} onChange={(event) => update(index, { model: event.target.value })} /></label></div>
