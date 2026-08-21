@@ -5,6 +5,13 @@ import Link from "next/link";
 type KeyItem = { id?: string; label: string; value?: string; keyHint?: string; enabled: boolean; failureCount?: number; lastUsedAt?: string | null; lastError?: string | null };
 type Channel = { id?: string; slug: string; displayName: string; protocol: "anthropic" | "openai-compatible"; baseUrl: string; model: string; priority: number; enabled: boolean; keys: KeyItem[] };
 
+function keyHealth(key: KeyItem) {
+  if (!key.id) return "尚未保存";
+  if (key.failureCount) return `连续失败 ${key.failureCount} 次 · ${key.lastError ?? "未知错误"}`;
+  if (key.lastUsedAt) return `最近成功：${new Date(key.lastUsedAt).toLocaleString("zh-CN")}`;
+  return "尚未调用";
+}
+
 const presets: Record<string, Omit<Channel, "keys" | "priority" | "enabled">> = {
   anthropic: { slug: "anthropic", displayName: "Anthropic", protocol: "anthropic", baseUrl: "https://api.anthropic.com/v1/messages", model: "claude-sonnet-4-5" },
   openai: { slug: "openai", displayName: "OpenAI", protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1/chat/completions", model: "gpt-4.1-mini" },
@@ -57,7 +64,7 @@ export function AISettings() {
       <div className="channel-title"><div><span className={`status-dot ${channel.enabled ? "active" : ""}`} /><h2>{channel.displayName}</h2><code>{channel.slug}</code></div><label className="switch-label"><input type="checkbox" checked={channel.enabled} onChange={(event) => update(index, { enabled: event.target.checked })} />启用</label></div>
       <div className="field-grid"><label>显示名称<input value={channel.displayName} onChange={(event) => update(index, { displayName: event.target.value })} /></label><label>优先级<input type="number" min="0" value={channel.priority} onChange={(event) => update(index, { priority: Number(event.target.value) })} /></label><label className="wide">API 地址<input value={channel.baseUrl} onChange={(event) => update(index, { baseUrl: event.target.value })} /></label><label className="wide">模型<input value={channel.model} onChange={(event) => update(index, { model: event.target.value })} /></label></div>
       <div className="keys-heading"><div><h3>Key 池</h3><span>{channel.keys.filter((key) => key.enabled).length} 个启用</span></div><button className="secondary-button" onClick={() => addKey(index)}>添加 Key</button></div>
-      <div className="key-list">{channel.keys.length === 0 && <p className="empty-copy">暂无 Key，这个渠道不会接收请求。</p>}{channel.keys.map((key, keyIndex) => <div className="key-row" key={key.id ?? keyIndex}><input aria-label="Key 标签" value={key.label} placeholder="用途标签" onChange={(event) => updateKey(index, keyIndex, { label: event.target.value })} /><input aria-label="API Key" type="password" value={key.value ?? ""} placeholder={key.keyHint ?? "输入 API Key"} onChange={(event) => updateKey(index, keyIndex, { value: event.target.value })} /><label><input type="checkbox" checked={key.enabled} onChange={(event) => updateKey(index, keyIndex, { enabled: event.target.checked })} />启用</label><button className="danger-button" onClick={() => removeKey(index, keyIndex)}>移除</button></div>)}</div>
+      <div className="key-list">{channel.keys.length === 0 && <p className="empty-copy">暂无 Key，这个渠道不会接收请求。</p>}{channel.keys.map((key, keyIndex) => <div className="key-row" key={key.id ?? keyIndex}><input aria-label="Key 标签" value={key.label} placeholder="用途标签" onChange={(event) => updateKey(index, keyIndex, { label: event.target.value })} /><input aria-label="API Key" type="password" value={key.value ?? ""} placeholder={key.keyHint ?? "输入 API Key"} onChange={(event) => updateKey(index, keyIndex, { value: event.target.value })} /><label><input type="checkbox" checked={key.enabled} onChange={(event) => updateKey(index, keyIndex, { enabled: event.target.checked })} />启用</label><button className="danger-button" onClick={() => removeKey(index, keyIndex)}>移除</button><span className={`key-health ${key.failureCount ? "unhealthy" : ""}`}>{keyHealth(key)}</span></div>)}</div>
       <footer className="channel-footer"><span>协议：{channel.protocol === "anthropic" ? "Anthropic Messages" : "OpenAI Compatible"}</span><button className="text-danger" onClick={() => removeChannel(index)}>删除渠道</button></footer>
     </section>)}</div>
     {available.length > 0 && <section className="add-channel"><h2>添加渠道</h2><div>{available.map((slug) => <button className="secondary-button" key={slug} onClick={() => addChannel(slug)}>+ {presets[slug].displayName}</button>)}</div></section>}

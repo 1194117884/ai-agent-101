@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { aiApiKeys, aiChannels } from "../db/schema";
 import { ChannelValidationError, validateAIChannels, type ChannelInput } from "./ai-channel-validation";
@@ -95,18 +95,37 @@ export async function deleteAIChannel(id: string) {
 }
 
 export async function databaseAIEnvironment(): Promise<Record<string, string>> {
+  return (await databaseAIConfiguration()).environment;
+}
+
+export async function databaseAIConfiguration() {
   const db = getDb();
   const channels = await db.select().from(aiChannels).where(eq(aiChannels.enabled, true)).orderBy(asc(aiChannels.priority));
-  if (!channels.length) return {};
+  if (!channels.length) return { environment: {} as Record<string, string>, reportAttempt: async () => {} };
   const output: Record<string, string> = { AI_PROVIDER_ORDER: channels.map((channel) => channel.slug).join(",") };
+  const keyIds = new Map<string, string>();
   for (const channel of channels) {
-    const rows = await db.select().from(aiApiKeys).where(eq(aiApiKeys.channelId, channel.id));
+    const rows = await db.select().from(aiApiKeys).where(eq(aiApiKeys.channelId, channel.id)).orderBy(asc(aiApiKeys.createdAt));
     const prefix = channel.slug.toUpperCase();
-    const keys = await Promise.all(rows.filter((row) => row.enabled).map((row) => decrypt(row.encryptedKey)));
+    const enabledRows = rows.filter((row) => row.enabled);
+    const keys = await Promise.all(enabledRows.map((row) => decrypt(row.encryptedKey)));
+    keys.forEach((key, index) => keyIds.set(`${channel.slug}\u0000${key}`, enabledRows[index].id));
     output[`${prefix}_API_KEYS`] = JSON.stringify(keys);
     if (!keys.length) continue;
     output[`${prefix}_MODEL`] = channel.model;
     output[`${prefix}_BASE_URL`] = channel.baseUrl;
   }
-  return output;
+  return {
+    environment: output,
+    reportAttempt: async ({ provider, key, outcome, error }: { provider: string; key: string; outcome: "success" | "failure"; error?: string }) => {
+      const id = keyIds.get(`${provider}\u0000${key}`);
+      if (!id) return;
+      const timestamp = new Date().toISOString();
+      if (outcome === "success") {
+        await db.update(aiApiKeys).set({ lastUsedAt: timestamp, failureCount: 0, lastError: null, updatedAt: timestamp }).where(eq(aiApiKeys.id, id));
+      } else {
+        await db.update(aiApiKeys).set({ lastUsedAt: timestamp, failureCount: sql`${aiApiKeys.failureCount} + 1`, lastError: error?.slice(0, 80) ?? "UNKNOWN_ERROR", updatedAt: timestamp }).where(eq(aiApiKeys.id, id));
+      }
+    },
+  };
 }

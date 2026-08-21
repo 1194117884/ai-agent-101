@@ -10,6 +10,8 @@ import { curriculumContext } from "./curriculum.ts";
 type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
 type Environment = Record<string, string | undefined>;
 type Provider = { name: ProviderName; keys: string[]; model: string; endpoint: string };
+export type CoachAttempt = { provider: ProviderName; key: string; outcome: "success" | "failure"; error?: string };
+export type CoachAttemptReporter = (attempt: CoachAttempt) => void | Promise<void>;
 
 const SYSTEM_PROMPT = "你是阿建，一名务实的 Agent Engineering 私教。基于课程与证据答疑；先拆小问题，再给可验收的下一步。只输出 JSON 对象，字段为 answer、followUp、focus、source。";
 const DEFAULT_PROVIDER_ORDER: ProviderName[] = ["anthropic", "openai", "deepseek", "openrouter"];
@@ -75,7 +77,12 @@ function parseReply(text: string): CoachReply | null {
   } catch { return null; }
 }
 
-export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch): Promise<CoachReply> {
+async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt: CoachAttempt) {
+  try { await reporter?.(attempt); }
+  catch { /* Telemetry must never interrupt provider failover or the learner response. */ }
+}
+
+export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter): Promise<CoachReply> {
   const course = curriculumContext(message);
   const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}\n\n学生：${message}\n回答必须基于上述课程；source 优先填写：${course.source}`;
   const providers = configuredProviders(env);
@@ -83,10 +90,18 @@ export async function generateCoachReply(message: string, priorScore: number | n
     for (const key of rotateKeys(provider)) {
       try {
         const response = await fetcher(provider.endpoint, requestFor(provider, key, prompt));
-        if (!response.ok) continue;
+        if (!response.ok) {
+          await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
+          continue;
+        }
         const reply = parseReply(responseText(provider, await response.json()));
-        if (reply) return { ...reply, delivery: { mode: "model", provider: provider.name } };
+        if (reply) {
+          await reportAttempt(reporter, { provider: provider.name, key, outcome: "success" });
+          return { ...reply, delivery: { mode: "model", provider: provider.name } };
+        }
+        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
       } catch {
+        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "NETWORK_ERROR" });
         // Try the next key, then the next configured provider.
       }
     }

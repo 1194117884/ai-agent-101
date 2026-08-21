@@ -62,3 +62,16 @@ test("reports when no model channel is configured", async () => {
   });
   assert.deepEqual(result.delivery, { mode: "fallback", reason: "not_configured" });
 });
+
+test("reports per-key failures and the eventual success without exposing response bodies", async () => {
+  const attempts: { provider: string; outcome: string; error?: string }[] = [];
+  let call = 0;
+  await generateCoachReply("问题", null, { OPENAI_API_KEYS: "bad,good", AI_PROVIDER_ORDER: "openai" }, async () => {
+    call += 1;
+    return call === 1 ? new Response("sensitive provider detail", { status: 429 }) : Response.json({ choices: [{ message: { content: reply } }] });
+  }, (attempt) => { attempts.push({ provider: attempt.provider, outcome: attempt.outcome, error: attempt.error }); });
+  assert.deepEqual(attempts, [
+    { provider: "openai", outcome: "failure", error: "HTTP 429" },
+    { provider: "openai", outcome: "success", error: undefined },
+  ]);
+});
