@@ -1,8 +1,34 @@
+import rawCatalog from "./catalog.generated.json" with { type: "json" };
+
 export type Priority = "P0" | "P1" | "P2";
-export const competencies = [
-  ["agent-loop", "Agent Loop / Runtime / State", "P0", []], ["tool-design", "Tool Design / Function Calling", "P0", ["agent-loop"]], ["context", "Context Engineering", "P0", ["agent-loop"]], ["evaluation", "Evaluation / Benchmark", "P0", ["agent-loop"]], ["reliability", "Reliability / Recovery", "P0", ["tool-design", "evaluation"]], ["security", "Security / Guardrails / HITL", "P0", ["tool-design"]], ["contracts", "Structured Output / Contracts", "P0", ["tool-design"]], ["skills", "Skills / ACI / Tool UX", "P0", ["tool-design", "context"]]
-] as const;
-export const teachingStages = [
-  ["Day 1–6", "基础与单 Agent", "心智模型、Loop、Tool、Trace 与最小 Eval"], ["Day 7–11", "Context Engineering", "上下文、Skills、MCP、检索与记忆边界"], ["Day 12–17", "Reasoning 与可靠性", "ReAct、规划、恢复与协作取舍"], ["Day 18–24", "Eval 与 Harness", "评估、长运行、部署成本和安全边界"], ["Day 25–30", "Capstone", "同一 Runtime 迁移到真实场景并做 ablation"]
-] as const;
-export const canonicalCurriculumPolicy = "教学阶段以 agent_30_day_bootcamp_v2.html 为准；基础划分页补充能力定义、练习与验收。";
+export type Competency = { id: string; name: string; score: number; prio: Priority; prerequisites: string[] };
+export type CurriculumUnit = { id: string; day: number; stageId: string; title: string; priority: Priority; projectTracks: string[]; competencyIds: string[]; prerequisites: string[]; objectives: string[]; readings: string[]; practice: string; acceptance: string; sourcePolicy: string };
+export type CurriculumSource = { id: string; title: string; type: string; note: string; url: string; status: "reviewed" | "pending"; trustLevel: "primary" | "reference" };
+export type TeachingPhase = { id: string; days: string; name: string; desc: string; color: string };
+
+export const curriculum = rawCatalog as {
+  version: string;
+  policy: string;
+  generatedFrom: string[];
+  phases: TeachingPhase[];
+  competencies: Competency[];
+  units: CurriculumUnit[];
+  sources: CurriculumSource[];
+};
+
+export const competencies = curriculum.competencies;
+export const teachingStages = curriculum.phases;
+export const curriculumUnits = curriculum.units;
+export const curriculumSources = curriculum.sources;
+export const canonicalCurriculumPolicy = curriculum.policy;
+
+export function getCompetency(id: string) { return competencies.find((item) => item.id === id) ?? null; }
+export function getCurriculumUnit(day: number) { return curriculumUnits.find((item) => item.day === day) ?? null; }
+export function getUnitsForCompetency(id: string) { return curriculumUnits.filter((item) => item.competencyIds.includes(id)); }
+export function getPrerequisiteChain(id: string, seen = new Set<string>()): Competency[] {
+  if (seen.has(id)) return [];
+  seen.add(id);
+  const competency = getCompetency(id);
+  if (!competency) return [];
+  return competency.prerequisites.flatMap((prerequisite) => { const item = getCompetency(prerequisite); return item ? [...getPrerequisiteChain(prerequisite, seen), item] : []; }).filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index);
+}

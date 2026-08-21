@@ -1,4 +1,5 @@
 export type CoachReply = { answer: string; followUp: string; focus: string; source: string };
+import { curriculumContext } from "./curriculum.ts";
 
 type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
 type Environment = Record<string, string | undefined>;
@@ -69,7 +70,8 @@ function parseReply(text: string): CoachReply | null {
 }
 
 export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch): Promise<CoachReply> {
-  const prompt = `课程：基础能力划分和修订教学大纲。最近评分：${priorScore ?? "无"}。学生：${message}`;
+  const course = curriculumContext(message);
+  const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}\n\n学生：${message}\n回答必须基于上述课程；source 优先填写：${course.source}`;
   for (const provider of configuredProviders(env)) {
     for (const key of rotateKeys(provider)) {
       try {

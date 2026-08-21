@@ -1,0 +1,1466 @@
+{
+  "version": "2026.08.21",
+  "policy": "教学阶段以修订版 v2 为唯一默认路径；原版提供能力、练习、验收与资料来源。",
+  "generatedFrom": [
+    "agent_30_day_bootcamp_v2.html",
+    "agent_30_day_bootcamp.html"
+  ],
+  "phases": [
+    {
+      "id": "F1",
+      "days": "1–6",
+      "name": "基础与单 Agent",
+      "desc": "mental model / loop / tools / trace",
+      "color": "#7c9cff"
+    },
+    {
+      "id": "F2",
+      "days": "7–12",
+      "name": "MCP · Context · Memory",
+      "desc": "skills / RAG / memory",
+      "color": "#8b7cff"
+    },
+    {
+      "id": "F3",
+      "days": "13–18",
+      "name": "Reasoning · Reliability",
+      "desc": "ReAct / recovery / orchestration",
+      "color": "#4fc4b4"
+    },
+    {
+      "id": "F4",
+      "days": "19–24",
+      "name": "Eval · Security · Harness",
+      "desc": "benchmark / sandbox / long-running",
+      "color": "#ffb85c"
+    },
+    {
+      "id": "F5",
+      "days": "25–30",
+      "name": "Capstone 产品化",
+      "desc": "迁移 / ablation / final benchmark",
+      "color": "#ff7b8a"
+    }
+  ],
+  "competencies": [
+    {
+      "id": "loop",
+      "name": "Agent Loop / Runtime / State",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": []
+    },
+    {
+      "id": "tools",
+      "name": "Tool Design / Function Calling",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "eval",
+      "name": "Evaluation / Benchmark",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "context",
+      "name": "Context Engineering",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "reliability",
+      "name": "Reliability / Recovery / Idempotency",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": [
+        "loop",
+        "tools"
+      ]
+    },
+    {
+      "id": "security",
+      "name": "Security / Guardrails / HITL",
+      "score": 5,
+      "prio": "P0",
+      "prerequisites": [
+        "tools",
+        "contracts"
+      ]
+    },
+    {
+      "id": "contracts",
+      "name": "Structured Output / Contracts",
+      "score": 4.8,
+      "prio": "P0",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "skills",
+      "name": "Skills / ACI / Tool UX",
+      "score": 4.8,
+      "prio": "P0",
+      "prerequisites": [
+        "tools",
+        "context"
+      ]
+    },
+    {
+      "id": "mcp",
+      "name": "MCP / Capability Protocol",
+      "score": 4.7,
+      "prio": "P1",
+      "prerequisites": [
+        "tools",
+        "contracts"
+      ]
+    },
+    {
+      "id": "observe",
+      "name": "Trace / Observability",
+      "score": 4.7,
+      "prio": "P1",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "longrun",
+      "name": "Long-running / Checkpoint / Resume",
+      "score": 4.6,
+      "prio": "P1",
+      "prerequisites": [
+        "context",
+        "reliability"
+      ]
+    },
+    {
+      "id": "reason",
+      "name": "Planning / ReAct / Reasoning",
+      "score": 4.5,
+      "prio": "P1",
+      "prerequisites": [
+        "loop"
+      ]
+    },
+    {
+      "id": "memory",
+      "name": "Memory / Forgetting",
+      "score": 4.4,
+      "prio": "P1",
+      "prerequisites": [
+        "context"
+      ]
+    },
+    {
+      "id": "orchestrate",
+      "name": "Routing / Parallel / Orchestration",
+      "score": 4.3,
+      "prio": "P1",
+      "prerequisites": [
+        "loop",
+        "tools"
+      ]
+    },
+    {
+      "id": "deploy",
+      "name": "Deployment / Cost / Model Routing",
+      "score": 4.2,
+      "prio": "P1",
+      "prerequisites": [
+        "reliability",
+        "observe"
+      ]
+    },
+    {
+      "id": "rag",
+      "name": "RAG / Retrieval",
+      "score": 4,
+      "prio": "P1",
+      "prerequisites": [
+        "context",
+        "tools"
+      ]
+    },
+    {
+      "id": "multi",
+      "name": "Multi-Agent / Handoff / A2A",
+      "score": 3.7,
+      "prio": "P2",
+      "prerequisites": [
+        "orchestrate",
+        "context"
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced Search / ToT / MCTS",
+      "score": 2.6,
+      "prio": "P2",
+      "prerequisites": [
+        "reason",
+        "eval"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "id": "day-1",
+      "day": 1,
+      "stageId": "F1",
+      "title": "建立正确的 Agent 心智模型",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "loop",
+        "orchestrate"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "Workflow vs Agent：谁决定路径？",
+        "Sense → Plan → Act → Learn",
+        "Model / Tools / Instructions 与 5 functional layers",
+        "“最简单方案优先”的 complexity ladder"
+      ],
+      "readings": [
+        "Anthropic · Building effective agents：What are agents? / When (and when not) to use agents",
+        "AI Agents in Action 2e · Ch1 §1.1–1.3（agent、sense-plan-act-learn、five functional layers）",
+        "OpenAI · A practical guide：What is an agent? / When should you build an agent?"
+      ],
+      "practice": "建立 agent-lab 仓库：/runtime /tools /skills /evals /examples；写 ADR-001《什么时候不用 Agent》；画出你的 Runtime 分层图。",
+      "acceptance": "能把 10 个业务需求分类成：plain LLM / deterministic workflow / single-agent / multi-agent，并说明为什么。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-2",
+      "day": 2,
+      "stageId": "F1",
+      "title": "不用框架，手写最小 Agent Loop",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "loop",
+        "reason",
+        "observe"
+      ],
+      "prerequisites": [
+        "loop"
+      ],
+      "objectives": [
+        "while-loop 才是 Agent 的骨架",
+        "Observation、Action、Tool Result、Stop Condition",
+        "maxTurns / timeout / error / final output",
+        "不要把框架当 Agent 本体"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch9 §9.1：inner loop / task loop / meta loop",
+        "OpenAI Practical Guide · Single-agent systems（run loop / exit condition）",
+        "Paper · ReAct：Abstract + Method/核心循环"
+      ],
+      "practice": "写 MiniRunner：model(input,state) → tool call → execute → append observation → next turn；支持 maxTurns、cancel、final structured output；每步写 trace.jsonl。",
+      "acceptance": "在 mock LLM 或真实 API 下完成 3 个多步任务；任何失败都能从 trace 重放出“在哪一步坏了”。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-3",
+      "day": 3,
+      "stageId": "F1",
+      "title": "Instructions 与 Structured Contract",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "contracts",
+        "loop"
+      ],
+      "prerequisites": [
+        "loop"
+      ],
+      "objectives": [
+        "system instruction 不等于无限规则",
+        "typed output / JSON Schema",
+        "边界条件、拒绝、缺参澄清",
+        "输出 contract 是 Agent 与 deterministic code 的接缝"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch2 §2.2–2.3.4",
+        "OpenAI Practical Guide · Configuring instructions",
+        "AI Agents: The Definitive Guide · Ch5：Contracts / validating data & handoffs"
+      ],
+      "practice": "为 Agent 定义 TaskResult、ToolCall、ErrorEnvelope、HandoffResult 四个 schema；禁止下游解析自由文本；加入 schema validation + repair/abort policy。",
+      "acceptance": "故意让模型输出 10 组坏 JSON；系统能稳定判错，不会把半结构化文本继续流入业务层。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-4",
+      "day": 4,
+      "stageId": "F1",
+      "title": "Tool Design：工具不是 API 包装器",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "tools",
+        "contracts",
+        "eval"
+      ],
+      "prerequisites": [
+        "loop"
+      ],
+      "objectives": [
+        "Agent-facing affordance / Tool UX",
+        "少而清晰 > 多而重叠",
+        "名称、description、schema、错误信息都会改变成功率",
+        "返回 high-signal context，做 pagination/filter/truncation"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Tool Use (Function Calling), pp.61–81",
+        "AI Agents in Action 2e · Ch2 §2.4",
+        "Anthropic · Writing effective tools for agents：What is a tool? / How to write tools / Principles",
+        "Paper · Toolformer：Abstract + tool-use idea"
+      ],
+      "practice": "实现 ToolRegistry + 3 个工具：search_items / inspect_item / save_candidate。为工具写 schema、例子、错误提示、risk level；生成 20 条 tool-selection eval。",
+      "acceptance": "20 条 eval 中：正确工具选择率 ≥85%；把 2 个工具改成含糊名字后再测，观察回退并记录。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-5",
+      "day": 5,
+      "stageId": "F1",
+      "title": "Workflow Patterns：Chain / Route / Parallel",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "game",
+        "story"
+      ],
+      "competencyIds": [
+        "orchestrate",
+        "tools"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "固定路径任务优先 workflow",
+        "Routing 是 separation of concerns",
+        "并行只有在子任务独立时才值得",
+        "延迟、cost、quality 的交换"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Prompt Chaining pp.3–16 / Routing pp.17–30 / Parallelization pp.31–45",
+        "Anthropic · Building effective agents：Workflow: Prompt chaining / Routing / Parallelization"
+      ],
+      "practice": "同一个任务分别写：① prompt chain ② router ③ parallel fan-out/fan-in；统一接入 trace。示例可用“素材 brief → 风格/尺寸/命名检查”。",
+      "acceptance": "给 6 个场景说明哪一种 pattern 最合适；能用 latency + token + error surface 解释选择。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-6",
+      "day": 6,
+      "stageId": "F1",
+      "title": "Trace / Observability：先看清，再优化",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "observe",
+        "eval"
+      ],
+      "prerequisites": [
+        "loop"
+      ],
+      "objectives": [
+        "trace ≠ log 文本堆积",
+        "run / span / model / tool / handoff / guardrail event",
+        "tokens、latency、cost、error、state diff",
+        "可观察性是 eval 的数据基础"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch2 §2.3.4 tracing；Ch7 §7.4 Phoenix（概念为主）",
+        "OpenAI Agents SDK · Integrations and observability",
+        "Anthropic Evals：transcript / trace / trajectory 定义"
+      ],
+      "practice": "定义 TraceEvent schema；每个 run 有 runId，每次模型/工具调用有 spanId；做一个本地 HTML/CLI trace viewer，能按失败工具、耗时过滤。",
+      "acceptance": "从一个失败 run 中，不看代码，只看 trace 就能回答：模型为什么选错工具？工具返回了什么？最终状态为何错？",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-7",
+      "day": 7,
+      "stageId": "F2",
+      "title": "Week 1 Gate：Single-Agent v0.1 + 浏览器只读 Skill",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "loop",
+        "tools",
+        "observe",
+        "skills"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "context"
+      ],
+      "objectives": [
+        "把原语组合成真正可跑系统",
+        "Browser 不是“让模型随便点”，而是设计 Agent-Computer Interface"
+      ],
+      "readings": [
+        "复盘 Day1–6；只补失败项，不新增书",
+        "SWE-agent：先读 Abstract，建立 ACI 预感"
+      ],
+      "practice": "做 v0.1 CLI Agent；浏览器侧先只做 inspect_dom / query_elements / extract_table 三个只读脚本工具；所有模型决策可追踪。",
+      "acceptance": "10 个浏览器只读任务 ≥80% 完成；不得直接给模型整页 DOM；trace 中能看见 context 压缩后的输入。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-8",
+      "day": 8,
+      "stageId": "F2",
+      "title": "MCP：把 Capability 从 Runtime 解耦",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "mcp",
+        "tools",
+        "contracts"
+      ],
+      "prerequisites": [
+        "tools",
+        "contracts",
+        "loop"
+      ],
+      "objectives": [
+        "client / server / transport / capability discovery",
+        "Tools vs Resources vs Prompts",
+        "STDIO / streamable HTTP 的边界",
+        "MCP 是 protocol，不是 Agent framework"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch3 §3.1–3.4",
+        "Agentic Design Patterns · Model Context Protocol, pp.147–162",
+        "MCP Spec 2026-07-28 · Architecture / Tools / Resources / Prompts"
+      ],
+      "practice": "把 Day4 的 3 个工具改造成一个本地 MCP server；Agent Lab 同时支持 native ToolRegistry 与 MCP adapter。",
+      "acceptance": "同一个 tool eval 套件分别跑 native 与 MCP 两条路径，业务结果一致；记录额外 latency 和失败点。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-9",
+      "day": 9,
+      "stageId": "F2",
+      "title": "Context Engineering：Token 是稀缺工作内存",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "context",
+        "tools",
+        "memory"
+      ],
+      "prerequisites": [
+        "loop",
+        "context"
+      ],
+      "objectives": [
+        "context ≠ prompt",
+        "Context rot / attention budget",
+        "system + tools + history + retrieved data + artifacts 的竞争",
+        "select / compress / externalize / retrieve"
+      ],
+      "readings": [
+        "Anthropic · Effective context engineering for AI agents：全文重点读 Context vs Prompt / why context matters",
+        "AI Agents in Action 2e · Ch6 §6.4.5 compression & forgetting（预读）"
+      ],
+      "practice": "做 ContextBudget：给 system、tool descriptions、history、memory、tool results 分预算；支持 truncate、summarize、external artifact reference。",
+      "acceptance": "对同一任务构造 3 种 context：全塞、粗暴截断、预算化；比较成功率与 token。能解释为什么“更长”不一定更好。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-10",
+      "day": 10,
+      "stageId": "F2",
+      "title": "Agent Skills：Procedural Knowledge 可组合化",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser",
+        "game"
+      ],
+      "competencyIds": [
+        "skills",
+        "context",
+        "tools"
+      ],
+      "prerequisites": [
+        "tools",
+        "context",
+        "loop"
+      ],
+      "objectives": [
+        "Skill = instructions + scripts + resources",
+        "progressive disclosure",
+        "procedural memory vs tool",
+        "skill description 也是 routing signal"
+      ],
+      "readings": [
+        "Anthropic · Equipping agents for the real world with Agent Skills：Anatomy / context window / code execution / developing & evaluating skills",
+        "Paper · Voyager：skill library + iterative prompting 部分"
+      ],
+      "practice": "实现最小 SkillLoader：只预载 name/description，需要时再读 SKILL.md；做 browser_find_bargain 与 game_asset_brief 两个 skill，允许 skill 引用脚本。",
+      "acceptance": "加入 20 个无关 skill 的 metadata 后，目标 skill 仍能被正确触发；完整正文只在命中时进入 context。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-11",
+      "day": 11,
+      "stageId": "F2",
+      "title": "RAG for Agents：检索是工具，不是万能记忆",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "story",
+        "game"
+      ],
+      "competencyIds": [
+        "rag",
+        "context",
+        "tools"
+      ],
+      "prerequisites": [
+        "context",
+        "tools",
+        "loop"
+      ],
+      "objectives": [
+        "semantic search / lexical search / hybrid",
+        "chunk / index / retrieve / rerank",
+        "Agentic search vs one-shot RAG",
+        "让 agent 生成后续查询，但结果必须可验证"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch6 §6.1–6.3",
+        "Agentic Design Patterns · Knowledge Retrieval (RAG), pp.193–208"
+      ],
+      "practice": "先实现 SQLite FTS/BM25 或简单 hybrid，不急着上复杂向量栈；暴露 search_docs(query,filters,topK) 工具，并返回 source ids。",
+      "acceptance": "建 15 个有明确答案的文档检索 case；命中率、source precision 可测；回答必须携带 source id，不允许“凭记忆补全”。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-12",
+      "day": 12,
+      "stageId": "F2",
+      "title": "Memory：Working / Episodic / Semantic / Procedural",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "story"
+      ],
+      "competencyIds": [
+        "memory",
+        "context",
+        "skills"
+      ],
+      "prerequisites": [
+        "context",
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "working memory ≠ persistent memory",
+        "episodic / semantic / procedural",
+        "write policy 比 vector DB 选型重要",
+        "forgetting / compression / relevance / privacy"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Memory Management, pp.115–134",
+        "AI Agents in Action 2e · Ch6 §6.4",
+        "AI Agents: The Definitive Guide · Ch10 Agent Memory"
+      ],
+      "practice": "MemoryStore v0.1：session working state + episodic event + user/project facts + procedural skill refs；定义 write/read/forget policy。",
+      "acceptance": "跑“跨 5 个 session 的分镜项目”模拟；能记住关键设定、不把所有历史塞回 context，并可明确删除一条记忆。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-13",
+      "day": 13,
+      "stageId": "F3",
+      "title": "Planning + ReAct：计划必须与行动闭环",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "reason",
+        "loop",
+        "tools"
+      ],
+      "prerequisites": [
+        "loop"
+      ],
+      "objectives": [
+        "reason → act → observe 的 interleaving",
+        "plan is state, not prose decoration",
+        "计划可以被 observation 修正",
+        "不要持久化或依赖隐藏 CoT；保存结构化 plan / decision summary 即可"
+      ],
+      "readings": [
+        "Paper · ReAct（完整精读一次）",
+        "AI Agents in Action 2e · Ch5 §5.1–5.2",
+        "Agentic Design Patterns · Planning pp.83–95；Reasoning Techniques pp.241–263"
+      ],
+      "practice": "实现 PlanState(tasks,current,done,blocked)；Agent 每轮可 update_plan；Browser 任务允许 observation 触发 replan。",
+      "acceptance": "给页面元素变化/工具失败制造干扰，Agent 能修改 plan 而不是无限重试原动作。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-14",
+      "day": 14,
+      "stageId": "F3",
+      "title": "Reflection / Self-Correction：只在有反馈时反思",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "game"
+      ],
+      "competencyIds": [
+        "reason",
+        "eval",
+        "memory"
+      ],
+      "prerequisites": [
+        "loop",
+        "context"
+      ],
+      "objectives": [
+        "feedback signal → reflection → next attempt",
+        "reflection 不是让模型空想",
+        "episodic reflection 可成为后续 context",
+        "retry 次数必须预算化"
+      ],
+      "readings": [
+        "Paper · Reflexion",
+        "Agentic Design Patterns · Reflection, pp.47–59",
+        "AI Agents in Action 2e · Ch5 §5.3.2 Reflexion"
+      ],
+      "practice": "为一个失败率较高的任务加入 evaluator → concise feedback → retry 1 次；reflection 写入 episodic memory，且带 task scope。",
+      "acceptance": "至少 20 case 做 baseline vs reflection；若没有提升，必须保留数据并说明为什么，不以“感觉更聪明”为验收。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-15",
+      "day": 15,
+      "stageId": "F3",
+      "title": "Goal Monitoring / Termination / Budgets",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "loop",
+        "reliability",
+        "deploy"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "reliability",
+        "observe"
+      ],
+      "objectives": [
+        "Agent 最大灾难之一：不知道什么时候停",
+        "done condition / progress / stagnation",
+        "token / tool-call / wall-clock / money budget",
+        "budget 是 architecture input"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Goal Setting and Monitoring, pp.163–174",
+        "AI Agents in Action 2e · Ch9 §9.2（initial state / iteration / termination gate）",
+        "AI Agents: The Definitive Guide · Ch11（agentic cost multiplier 概念）"
+      ],
+      "practice": "实现 BudgetPolicy(maxTurns,maxToolCalls,maxTokens,maxSeconds,maxCost) + stagnation detector + termination reasons。",
+      "acceptance": "故意制造永远失败的工具；系统必须在预算内停，并返回可诊断的 termination reason，而不是“卡死/烧钱”。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-16",
+      "day": 16,
+      "stageId": "F3",
+      "title": "Recovery：Retry、Fallback、Idempotency、Resume",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "reliability",
+        "loop",
+        "contracts"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "transport retry ≠ semantic retry",
+        "idempotency key",
+        "recoverable vs fatal error",
+        "checkpoint-before-side-effect"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Exception Handling and Recovery, pp.175–182",
+        "AI Agents in Action 2e · Ch8 §8.3.4 state/memory/idempotency；§8.3.7 timeouts/fallbacks/budgets"
+      ],
+      "practice": "给 ToolExecutor 加 retry/backoff、circuit breaker、idempotency key；写 run state snapshot；支持进程重启后从“安全点”续跑。",
+      "acceptance": "随机让工具 30% 失败、网络超时、重复回包；最终不重复执行不可逆动作，并能正确 resume。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-17",
+      "day": 17,
+      "stageId": "F3",
+      "title": "Orchestration：先比较 Single vs Multi",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime",
+        "story"
+      ],
+      "competencyIds": [
+        "orchestrate",
+        "multi",
+        "eval"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "orchestrate",
+        "context"
+      ],
+      "objectives": [
+        "manager-as-tool vs decentralized handoff",
+        "ownership of final answer",
+        "handoff contract",
+        "single-agent baseline 必须存在"
+      ],
+      "readings": [
+        "Anthropic · Building effective agents：Orchestrator-workers / Evaluator-optimizer",
+        "AI Agents in Action 2e · Ch4 §4.1–4.3",
+        "OpenAI Agents SDK · Orchestration and handoffs"
+      ],
+      "practice": "实现两种模式：Manager→Specialist（specialist as tool）与 Handoff；同一 20-case 测试也保留 single-agent 版本。",
+      "acceptance": "只有当 multi-agent 在成功率/并行性上有可测收益才保留；否则删除多余 agent。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-18",
+      "day": 18,
+      "stageId": "F3",
+      "title": "Multi-Agent + A2A：适用于可并行的高价值任务",
+      "priority": "P2",
+      "projectTracks": [
+        "runtime",
+        "game",
+        "story"
+      ],
+      "competencyIds": [
+        "multi",
+        "orchestrate",
+        "context"
+      ],
+      "prerequisites": [
+        "orchestrate",
+        "context",
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "orchestrator-worker / parallel subagents",
+        "subagent 有独立 context 的价值",
+        "communication overhead / token multiplier",
+        "artifact reference 可减少“传话损失”"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Multi-Agent Collaboration pp.97–113；Inter-Agent Communication (A2A) pp.209–223",
+        "AI Agents in Action 2e · Ch9 §9.3–9.4",
+        "Anthropic · How we built our multi-agent research system"
+      ],
+      "practice": "做一个 3-worker research/asset-analysis demo：worker 输出 artifact 文件 + lightweight reference，lead 聚合；限制 subagent count 与 tool calls。",
+      "acceptance": "测 single vs multi：总 tokens、wall time、coverage、success；如果只是更贵更慢，明确记录“不该 multi-agent”。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-19",
+      "day": 19,
+      "stageId": "F4",
+      "title": "Evaluation：从第 19 天开始不再凭感觉改 Agent",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser",
+        "game",
+        "story"
+      ],
+      "competencyIds": [
+        "eval",
+        "observe",
+        "reliability"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "task / trial / grader / trace / outcome / eval harness",
+        "最终状态优先于自述成功",
+        "deterministic grader + LLM judge 的边界",
+        "eval set 要来自真实 failure"
+      ],
+      "readings": [
+        "Anthropic · Demystifying evals for AI agents：Structure / Why / Graders / Outcomes",
+        "AI Agents in Action 2e · Ch7 §7.1–7.3",
+        "OpenAI · Evaluate agent workflows"
+      ],
+      "practice": "建立 /evals：至少 20 个 case；每个 case 有 input、env setup、expected outcome、policy checks；写 rule grader + optional rubric grader。",
+      "acceptance": "每次代码修改能一键跑 eval；报告 success rate、tool errors、policy violations、cost p50/p95。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-20",
+      "day": 20,
+      "stageId": "F4",
+      "title": "Benchmark 与 Reliability：一次成功远远不够",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "eval",
+        "reliability"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "nondeterminism → repeated trials",
+        "pass@1 不代表可靠",
+        "end-state database/objective check",
+        "benchmark harness 也是被评对象的一部分"
+      ],
+      "readings": [
+        "Paper · τ-bench（重点：end-state、pass^k）",
+        "Paper · AgentBench（重点：interactive environments）",
+        "可选：τ²-bench 看 dual-control 思路"
+      ],
+      "practice": "为你的浏览器/内容任务做 mini-τ：每个 case 重复 5 次；统计 first-pass success 与 all-runs reliability；记录 variance。",
+      "acceptance": "你能回答“这个 Agent 80% 成功”到底是哪个定义；至少找出 3 个只跑一次看不出来的随机失败模式。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-21",
+      "day": 21,
+      "stageId": "F4",
+      "title": "Guardrails / HITL / Threat Model",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "security",
+        "tools",
+        "contracts"
+      ],
+      "prerequisites": [
+        "tools",
+        "contracts",
+        "loop"
+      ],
+      "objectives": [
+        "risk = likelihood × blast radius",
+        "read-only / reversible / destructive tool tiers",
+        "approval fatigue",
+        "prompt injection、data exfiltration、secrets、egress"
+      ],
+      "readings": [
+        "Agentic Design Patterns · Human-in-the-Loop pp.183–191；Guardrails/Safety pp.265–284",
+        "AI Agents in Action 2e · Ch4 §4.4；Ch8 §8.4",
+        "AI Agents: The Definitive Guide · Ch12 Threat Modeling",
+        "OpenAI Practical Guide · Guardrails / Plan for human intervention",
+        "Anthropic · How we contain Claude across products"
+      ],
+      "practice": "Tool metadata 增加 riskLevel / reversible / sideEffect / scopes；high-risk 必须 approval；secrets 不进 model context；写一页 threat model。",
+      "acceptance": "红队 20 条：注入、诱导删除、越权、泄密、恶意网页文本；高风险动作 100% 被阻断或要求明确批准。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-22",
+      "day": 22,
+      "stageId": "F4",
+      "title": "Sandbox + ACI：给 Agent 一个受限的“电脑”",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "security",
+        "skills",
+        "tools"
+      ],
+      "prerequisites": [
+        "tools",
+        "contracts",
+        "context",
+        "loop"
+      ],
+      "objectives": [
+        "Agent-Computer Interface",
+        "control plane vs execution plane",
+        "filesystem / shell / ports / snapshot / egress",
+        "最小权限、可回滚环境"
+      ],
+      "readings": [
+        "Paper · SWE-agent（ACI 设计与结果）",
+        "OpenAI Agents SDK · Sandbox Agents",
+        "AI Agents: The Definitive Guide · Ch6 Secure Execution and Tool Governance",
+        "Anthropic · Building agents with Claude Agent SDK：Giving Claude a computer"
+      ],
+      "practice": "做 SandboxAdapter（至少限制 cwd、command allow/deny、env secret filter）；Browser ACI 暴露语义动作而不是任意 JS eval。",
+      "acceptance": "Agent 无法读 sandbox 外文件、无法拿 API key、无法执行被禁止网络/命令；正常任务仍可完成。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-23",
+      "day": 23,
+      "stageId": "F4",
+      "title": "Long-Running Harness：跨 Context Window 保持进度",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "story"
+      ],
+      "competencyIds": [
+        "longrun",
+        "context",
+        "memory",
+        "reliability"
+      ],
+      "prerequisites": [
+        "context",
+        "reliability",
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "initializer session vs incremental worker",
+        "progress artifact + git/history",
+        "context reset 是设计条件，不是异常",
+        "clean state / checkpoint / resume"
+      ],
+      "readings": [
+        "Anthropic · Effective harnesses for long-running agents",
+        "Anthropic · Harness design for long-running application development",
+        "OpenAI Agents SDK · Results and state / Sandbox snapshots（概念）"
+      ],
+      "practice": "增加 project_state.json + progress.md + artifacts/；强制每个 session 结束写 next_actions；模拟“完全新 context 的 Agent 接班”。",
+      "acceptance": "关闭进程并清空 conversation；新 session 只靠 repo/artifacts 能继续正确做下一 feature，且不重复已完成工作。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-24",
+      "day": 24,
+      "stageId": "F4",
+      "title": "Deployment / Cost / Model Routing",
+      "priority": "P1",
+      "projectTracks": [
+        "runtime"
+      ],
+      "competencyIds": [
+        "deploy",
+        "observe",
+        "reliability"
+      ],
+      "prerequisites": [
+        "reliability",
+        "observe",
+        "loop",
+        "tools"
+      ],
+      "objectives": [
+        "API / event-driven / job runtime",
+        "state & idempotency in production",
+        "cost per successful task，而不是 cost per call",
+        "model routing / fallback / release engineering"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch8 全章（重点 §8.2–8.4）",
+        "Agentic Design Patterns · Resource-Aware Optimization pp.225–239",
+        "AI Agents: The Definitive Guide · Ch7 + Ch11",
+        "OpenAI Practical Guide · Selecting your models"
+      ],
+      "practice": "把 agent-lab 暴露成一个服务或 job runner；加 usage accounting 与 simple model router（easy→cheap，hard→strong）；容器化可选。",
+      "acceptance": "能打印每个 task 的 total tokens / cost / wall time / tool count；模型降级或 provider error 有 fallback，不会悄悄失败。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-25",
+      "day": 25,
+      "stageId": "F5",
+      "title": "Capstone Architecture Freeze：先冻结接口，再冲刺",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser"
+      ],
+      "competencyIds": [
+        "loop",
+        "tools",
+        "eval",
+        "security",
+        "longrun"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "contracts",
+        "context",
+        "reliability"
+      ],
+      "objectives": [
+        "真正的架构来自失败数据",
+        "API surface freeze",
+        "capability / state / policy / eval 四张表"
+      ],
+      "readings": [
+        "AI Agents in Action 2e · Ch11 Tips for building agentic systems",
+        "回看你过去 24 天的 failure log，不再新增大块阅读"
+      ],
+      "practice": "冻结 v1 接口：AgentRunner、Tool、Skill、Memory、Trace、EvalCase、Checkpoint、Approval、Sandbox；写 ADR-010《哪些能力不属于 Agent Core》。",
+      "acceptance": "所有已有 demo 能通过 adapter 跑在同一个 core 上；没有为单一项目写死的 browser/game/story 逻辑进入 Runtime。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-26",
+      "day": 26,
+      "stageId": "F5",
+      "title": "Browser Exoskeleton Sprint：脚本化 Skill，而非自由操控",
+      "priority": "P0",
+      "projectTracks": [
+        "browser",
+        "runtime"
+      ],
+      "competencyIds": [
+        "skills",
+        "tools",
+        "security",
+        "context"
+      ],
+      "prerequisites": [
+        "tools",
+        "context",
+        "loop",
+        "contracts"
+      ],
+      "objectives": [
+        "deterministic script as exoskeleton",
+        "DOM selection / semantic locator / artifact snapshot",
+        "read / write action 分层",
+        "skill manifest + permission"
+      ],
+      "readings": [
+        "复习 Anthropic Tools + Agent Skills；SWE-agent ACI 结论",
+        "只查你实际遇到的 Playwright/Chrome API 官方文档"
+      ],
+      "practice": "实现 BrowserSkill manifest：inspect/query/extract/navigation 等脚本；模型只能选择/参数化已注册 skill，不允许任意代码直达浏览器。",
+      "acceptance": "20 个任务：成功率、tool-call 数、DOM token 消耗可测；所有 write/navigation 行为都有 trace 与 risk 标记。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-27",
+      "day": 27,
+      "stageId": "F5",
+      "title": "迁移到游戏素材 Agent：Workflow 优先于 Autonomy",
+      "priority": "P1",
+      "projectTracks": [
+        "game",
+        "runtime"
+      ],
+      "competencyIds": [
+        "orchestrate",
+        "contracts",
+        "deploy",
+        "eval"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "reliability",
+        "observe"
+      ],
+      "objectives": [
+        "生产内容流水线适合 fixed workflow + agentic islands",
+        "artifact versioning",
+        "cost budget per asset batch",
+        "QA grader"
+      ],
+      "readings": [
+        "回看 Prompt Chaining / Routing / Resource-Aware Optimization 对应章节",
+        "不新增框架"
+      ],
+      "practice": "同一 Runtime 实现 Brief → StyleSpec → AssetList → PromptPackage → QA；生成动作可先 mock/API adapter；产物全部 JSON + files。",
+      "acceptance": "任一步可单独 rerun，不重做全链；相同 brief 的结构化字段稳定；cost budget 超限时能停。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-28",
+      "day": 28,
+      "stageId": "F5",
+      "title": "迁移到分镜 Agent：长项目、记忆与 Human Review",
+      "priority": "P1",
+      "projectTracks": [
+        "story",
+        "runtime"
+      ],
+      "competencyIds": [
+        "memory",
+        "longrun",
+        "security",
+        "contracts"
+      ],
+      "prerequisites": [
+        "context",
+        "reliability",
+        "tools",
+        "contracts",
+        "loop"
+      ],
+      "objectives": [
+        "project memory 与 user memory 分离",
+        "角色/场景事实的 provenance",
+        "artifact-first collaboration",
+        "关键剧情/发布动作需要 human gate"
+      ],
+      "readings": [
+        "回看 Memory / Long-running / HITL 对应章节",
+        "AI Agents in Action 2e · Ch11 §11.2–11.4 选与你项目最接近的案例 tips"
+      ],
+      "practice": "做一个 10 场分镜项目：角色设定、场景、镜头、台词、拍摄状态写 JSON；跨 session 修改时保留版本和 provenance。",
+      "acceptance": "第 10 场引用第 1 场设定仍正确；用户改角色设定后旧冲突能被检测；导出的 JSON 可由另一个程序读取。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-29",
+      "day": 29,
+      "stageId": "F5",
+      "title": "Ablation + Red Team：删除没用的复杂度",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser",
+        "game",
+        "story"
+      ],
+      "competencyIds": [
+        "eval",
+        "security",
+        "deploy",
+        "multi"
+      ],
+      "prerequisites": [
+        "loop",
+        "tools",
+        "contracts",
+        "reliability",
+        "observe",
+        "orchestrate",
+        "context"
+      ],
+      "objectives": [
+        "ablation：memory on/off、skills on/off、multi/single",
+        "failure clustering",
+        "修 top failures，不优化平均感觉",
+        "复杂度必须证明自己有价值"
+      ],
+      "readings": [
+        "Anthropic Evals + Harness 简化原则复习",
+        "AI Agents: Definitive Guide · Ch8–9 作为 eval checklist"
+      ],
+      "practice": "跑完整 eval：至少比较 4 组配置；输出 scorecard.csv/json：success、reliability、cost、latency、policy violation；修复 top 3 failure cluster。",
+      "acceptance": "至少删除/合并一个“看起来高级但没有收益”的组件；每个保留组件都能指出它改善了哪个指标。",
+      "sourcePolicy": "v2-path+v1-capability"
+    },
+    {
+      "id": "day-30",
+      "day": 30,
+      "stageId": "F5",
+      "title": "Final Benchmark + v1.0 Retrospective",
+      "priority": "P0",
+      "projectTracks": [
+        "runtime",
+        "browser",
+        "game",
+        "story"
+      ],
+      "competencyIds": [
+        "eval",
+        "loop",
+        "longrun",
+        "security",
+        "deploy"
+      ],
+      "prerequisites": [
+        "loop",
+        "context",
+        "reliability",
+        "tools",
+        "contracts",
+        "observe"
+      ],
+      "objectives": [
+        "把知识变成自己的 architecture vocabulary",
+        "下一阶段由 eval 数据驱动，而不是追热点"
+      ],
+      "readings": [
+        "不读新材料。只复盘 30 天 notes、trace、eval、ADR。"
+      ],
+      "practice": "准备 30 个 blind tasks（10 browser + 10 workflow/content + 10 runtime/recovery/security），跑 3 trials；冻结 v1.0 tag；写 2 页 retrospective 与 60-day backlog。",
+      "acceptance": "建议门槛：普通任务 first-pass ≥80%；重复 3 次的可靠完成率有可解释数据；所有 high-risk case 100% 遵守 gate；能用 15 分钟白板讲清自己的 Harness。",
+      "sourcePolicy": "v2-path+v1-capability"
+    }
+  ],
+  "sources": [
+    {
+      "id": "source-01",
+      "title": "Agentic Design Patterns: A Hands-On Guide to Building Intelligent Systems",
+      "type": "Book · Springer · 2025",
+      "note": "按 pattern 查阅。当前 Springer 目录可核验 Prompt Chaining → Guardrails/Safety 的具名章节与页码。",
+      "url": "https://link.springer.com/book/10.1007/978-3-032-01402-3",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-02",
+      "title": "AI Agents in Action, Second Edition",
+      "type": "Book · Manning · Jun 2026",
+      "note": "392 页 / 11 章。30 天计划中最适合作为“工程主教材”的一本。",
+      "url": "https://www.manning.com/books/ai-agents-in-action-second-edition",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-03",
+      "title": "AI Agents: The Definitive Guide",
+      "type": "Book Preview · O’Reilly · Sep 2026",
+      "note": "截至 2026-08-15 仍属于即将出版/在线预览内容；目录可能调整。重点取 Production / Sandbox / Eval / Memory / Cost / Threat Model。",
+      "url": "https://www.oreilly.com/library/view/ai-agents-the/0642572247775/",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-04",
+      "title": "Building effective agents",
+      "type": "Engineering Guide · Anthropic",
+      "note": "Workflow vs Agent、composable patterns、augmented LLM。注意文章自身提示 2024 的 tooling 已变化，但模式仍是核心。",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-05",
+      "title": "Writing effective tools for agents — with agents",
+      "type": "Engineering Guide · Anthropic · Sep 2025",
+      "note": "Tool UX、namespacing、high-signal response、token efficiency、tool description eval。",
+      "url": "https://www.anthropic.com/engineering/writing-tools-for-agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-06",
+      "title": "Effective context engineering for AI agents",
+      "type": "Engineering Guide · Anthropic · Sep 2025",
+      "note": "把 context 当有限资源管理，是 2026 Agent 工程的核心读物。",
+      "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-07",
+      "title": "Equipping agents for the real world with Agent Skills",
+      "type": "Engineering Guide · Anthropic · Oct 2025",
+      "note": "Skill anatomy、progressive disclosure、scripts/resources、skill evaluation。",
+      "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-08",
+      "title": "Effective harnesses for long-running agents",
+      "type": "Engineering Guide · Anthropic · Nov 2025",
+      "note": "initializer + incremental worker + progress artifacts + cross-context continuity。",
+      "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-09",
+      "title": "Harness design for long-running application development",
+      "type": "Engineering Guide · Anthropic · Mar 2026",
+      "note": "进一步讨论如何用 ablation 简化 harness，避免旧假设变成永久脚手架。",
+      "url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-10",
+      "title": "Demystifying evals for AI agents",
+      "type": "Engineering Guide · Anthropic · Jan 2026",
+      "note": "task/trial/grader/trace/outcome/eval harness/agent harness 的清晰定义。",
+      "url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-11",
+      "title": "How we built our multi-agent research system",
+      "type": "Engineering Case Study · Anthropic · Jun 2025",
+      "note": "真正有价值的 multi-agent 场景、token multiplier、orchestrator-worker、artifact handoff。",
+      "url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-12",
+      "title": "How we contain Claude across products",
+      "type": "Security Engineering · Anthropic · May 2026",
+      "note": "blast radius、containment、sandbox/VM/egress、approval fatigue。",
+      "url": "https://www.anthropic.com/engineering/how-we-contain-claude",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-13",
+      "title": "A practical guide to building agents",
+      "type": "Guide · OpenAI",
+      "note": "Model / Tools / Instructions、single vs multi-agent、guardrails、human intervention。",
+      "url": "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-14",
+      "title": "OpenAI Agents SDK Docs",
+      "type": "Official Docs · OpenAI · current",
+      "note": "重点：Running agents / Sandbox agents / Orchestration / Results & state / Observability / Agent evals。",
+      "url": "https://developers.openai.com/api/docs/guides/agents",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-15",
+      "title": "MCP Specification 2026-07-28",
+      "type": "Protocol Spec · current",
+      "note": "以当前版 Architecture、Tools、Resources、Prompts 为准，避免只看 2024/2025 博客。",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture",
+      "status": "reviewed",
+      "trustLevel": "primary"
+    },
+    {
+      "id": "source-16",
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "type": "Paper · 2022",
+      "note": "现代 tool-using agent loop 的奠基阅读。",
+      "url": "https://arxiv.org/abs/2210.03629",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-17",
+      "title": "Toolformer: Language Models Can Teach Themselves to Use Tools",
+      "type": "Paper · 2023",
+      "note": "理解“何时、调用什么、参数是什么、如何吸收 tool result”的早期核心思想。",
+      "url": "https://arxiv.org/abs/2302.04761",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-18",
+      "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "type": "Paper · 2023",
+      "note": "feedback → reflection → episodic memory → next trial。",
+      "url": "https://arxiv.org/abs/2303.11366",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-19",
+      "title": "Voyager: An Open-Ended Embodied Agent with Large Language Models",
+      "type": "Paper · 2023",
+      "note": "automatic curriculum + executable skill library + iterative prompting。",
+      "url": "https://arxiv.org/abs/2305.16291",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-20",
+      "title": "SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering",
+      "type": "Paper · 2024",
+      "note": "ACI 思想对“AI 浏览器机械外骨骼”尤其关键：接口本身决定 Agent 能力上限。",
+      "url": "https://arxiv.org/abs/2405.15793",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-21",
+      "title": "τ-bench: A Benchmark for Tool-Agent-User Interaction",
+      "type": "Paper · 2024",
+      "note": "end-state evaluation 与 pass^k reliability。",
+      "url": "https://arxiv.org/abs/2406.12045",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    },
+    {
+      "id": "source-22",
+      "title": "AgentBench: Evaluating LLMs as Agents",
+      "type": "Paper · 2023",
+      "note": "在多种 interactive environment 中测多轮决策与行动。",
+      "url": "https://arxiv.org/abs/2308.03688",
+      "status": "reviewed",
+      "trustLevel": "reference"
+    }
+  ]
+}
