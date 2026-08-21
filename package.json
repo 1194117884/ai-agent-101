@@ -14,7 +14,8 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "curriculum:generate": "node scripts/generate-curriculum.mjs",
-    "test:curriculum": "node --experimental-strip-types tests/curriculum.test.ts"
+    "test:curriculum": "node --experimental-strip-types tests/curriculum.test.ts",
+    "test:assessment": "node --experimental-strip-types tests/assessment.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
