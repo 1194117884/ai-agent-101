@@ -1,4 +1,10 @@
-export type CoachReply = { answer: string; followUp: string; focus: string; source: string };
+export type CoachReply = {
+  answer: string;
+  followUp: string;
+  focus: string;
+  source: string;
+  delivery?: { mode: "model" | "fallback"; provider?: ProviderName; reason?: "not_configured" | "provider_error" };
+};
 import { curriculumContext } from "./curriculum.ts";
 
 type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
@@ -72,19 +78,20 @@ function parseReply(text: string): CoachReply | null {
 export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch): Promise<CoachReply> {
   const course = curriculumContext(message);
   const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}\n\n学生：${message}\n回答必须基于上述课程；source 优先填写：${course.source}`;
-  for (const provider of configuredProviders(env)) {
+  const providers = configuredProviders(env);
+  for (const provider of providers) {
     for (const key of rotateKeys(provider)) {
       try {
         const response = await fetcher(provider.endpoint, requestFor(provider, key, prompt));
         if (!response.ok) continue;
         const reply = parseReply(responseText(provider, await response.json()));
-        if (reply) return reply;
+        if (reply) return { ...reply, delivery: { mode: "model", provider: provider.name } };
       } catch {
         // Try the next key, then the next configured provider.
       }
     }
   }
-  return coach(message, priorScore);
+  return { ...coach(message, priorScore), delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
 }
 
 export function coach(message: string, priorScore: number | null): CoachReply {

@@ -41,6 +41,24 @@ test("fails over across keys and providers", async () => {
     DEEPSEEK_API_KEYS: "d-1",
   }, fetcher);
   assert.equal(result.answer, "回答");
+  assert.deepEqual(result.delivery, { mode: "model", provider: "deepseek" });
   assert.deepEqual(calls.map((call) => call.auth), ["a-1", "a-2", "Bearer d-1"]);
   assert.match(calls[2].url, /deepseek/);
+});
+
+test("reports a safe fallback when all configured model keys fail", async () => {
+  const result = await generateCoachReply("schema 应该怎么设计？", 60, {
+    OPENAI_API_KEYS: "broken-key",
+    AI_PROVIDER_ORDER: "openai",
+  }, async () => new Response("unavailable", { status: 503 }));
+  assert.equal(result.delivery?.mode, "fallback");
+  assert.equal(result.delivery?.reason, "provider_error");
+  assert.match(result.answer, /schema/);
+});
+
+test("reports when no model channel is configured", async () => {
+  const result = await generateCoachReply("什么是工具？", null, {}, async () => {
+    throw new Error("fetch should not run");
+  });
+  assert.deepEqual(result.delivery, { mode: "fallback", reason: "not_configured" });
 });
