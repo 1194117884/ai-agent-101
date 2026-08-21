@@ -14,14 +14,20 @@ npm test
 
 ## Cloudflare deployment
 
-`wrangler.jsonc` declares the Worker and D1 binding. Production identity comes
-from Cloudflare Access through `Cf-Access-Authenticated-User-Email`.
+`wrangler.jsonc` declares the built Worker entry and D1 binding. Production
+identity comes from Cloudflare Access through
+`Cf-Access-Authenticated-User-Email`.
 
 ```bash
 npx wrangler login
 npx wrangler d1 migrations apply agent-engineering-coach --remote
 npm run deploy
 ```
+
+Cloudflare Git Hooks / Workers Builds must also use `npm run deploy` so the
+vinext Worker entry is generated before Wrangler uploads it. Do not configure
+the hook as `wrangler deploy` by itself. To validate the complete build and
+upload bundle without publishing, run `npm run deploy:check`.
 
 Configure `AI_KEY_ENCRYPTION_SECRET` as a Worker secret. Optionally set
 `AI_ADMIN_EMAILS` to a comma-separated allowlist; otherwise every identity
