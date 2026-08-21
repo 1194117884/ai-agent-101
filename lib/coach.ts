@@ -4,6 +4,7 @@ export type CoachReply = {
   focus: string;
   source: string;
   delivery?: { mode: "model" | "fallback"; provider?: ProviderName; reason?: "not_configured" | "provider_error" };
+  retrievedSources?: { title: string; url: string | null; versionLabel: string | null; trustLevel: string }[];
 };
 import { curriculumContext } from "./curriculum.ts";
 
@@ -82,9 +83,10 @@ async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt
   catch { /* Telemetry must never interrupt provider failover or the learner response. */ }
 }
 
-export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter): Promise<CoachReply> {
+export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"] }): Promise<CoachReply> {
   const course = curriculumContext(message);
-  const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}\n\n学生：${message}\n回答必须基于上述课程；source 优先填写：${course.source}`;
+  const retrieved = knowledge?.context ? `\n\n已审核知识库片段：\n${knowledge.context}` : "";
+  const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}${retrieved}\n\n学生：${message}\n回答必须基于上述课程和已审核片段；不得声称使用未提供的资料。source 填写最主要的课程或资料标题。`;
   const providers = configuredProviders(env);
   for (const provider of providers) {
     for (const key of rotateKeys(provider)) {
@@ -97,7 +99,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
         const reply = parseReply(responseText(provider, await response.json()));
         if (reply) {
           await reportAttempt(reporter, { provider: provider.name, key, outcome: "success" });
-          return { ...reply, delivery: { mode: "model", provider: provider.name } };
+          return { ...reply, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };
         }
         await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
       } catch {
@@ -106,7 +108,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
       }
     }
   }
-  return { ...coach(message, priorScore), delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
+  return { ...coach(message, priorScore), retrievedSources: knowledge?.sources ?? [], delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
 }
 
 export function coach(message: string, priorScore: number | null): CoachReply {

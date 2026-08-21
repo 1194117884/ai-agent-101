@@ -16,7 +16,7 @@ export default async function Home() {
   return <main className="coach-shell">
     <header className="coach-nav">
       <div className="brand"><span className="brand-mark">A</span><div><strong>阿建私教</strong><small>Agent Engineering Coach</small></div></div>
-      <div className="nav-actions"><Link href="/admin/ai" className="admin-link">AI 渠道管理 <span>→</span></Link><LogoutButton /></div>
+      <div className="nav-actions"><Link href="/admin/knowledge" className="admin-link">知识库</Link><Link href="/admin/ai" className="admin-link">AI 渠道 <span>→</span></Link><LogoutButton /></div>
     </header>
 
     <section className="hero-grid">

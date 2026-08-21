@@ -1,14 +1,10 @@
-import { getCloudflareUser } from "../../../auth";
-import { env } from "cloudflare:workers";
+import { getAdminUser } from "../../../admin-auth";
 import { deleteAIChannel, listAIChannels, saveAIChannels, type ChannelInput } from "../../../../lib/ai-settings";
 import { ChannelValidationError } from "../../../../lib/ai-channel-validation";
 import { apiError, databaseError } from "../../../../lib/api-response";
 
 async function authorized() {
-  const user = await getCloudflareUser();
-  if (!user) return false;
-  const allowlist = env.AI_ADMIN_EMAILS?.toLowerCase().split(/[\s,;]+/).filter(Boolean) ?? [];
-  return allowlist.length === 0 || allowlist.includes(user.userId);
+  return Boolean(await getAdminUser());
 }
 
 export async function GET() {

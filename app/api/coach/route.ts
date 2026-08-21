@@ -5,6 +5,7 @@ import { conversations, evidence, learnerProfiles } from "../../../db/schema";
 import { databaseAIConfiguration } from "../../../lib/ai-settings";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { generateCoachReply, type CoachAttemptReporter } from "../../../lib/coach";
+import { retrieveKnowledge } from "../../../lib/knowledge-retrieval";
 
 export async function POST(request: Request) {
   const user = await getCloudflareUser();
@@ -27,7 +28,10 @@ export async function POST(request: Request) {
       reportAttempt = configuration.reportAttempt;
     }
     catch { /* Environment variables remain the fallback until D1 settings are available. */ }
-    const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt);
+    let knowledge = { context: "", sources: [] as { title: string; url: string | null; versionLabel: string | null; trustLevel: string }[] };
+    try { knowledge = await retrieveKnowledge(message); }
+    catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
+    const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);
     await db.batch([
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "learner", content: message }),
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.answer}\n追问：${reply.followUp}`, source: reply.source }),

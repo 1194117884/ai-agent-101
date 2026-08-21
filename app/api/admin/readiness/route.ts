@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { count, eq } from "drizzle-orm";
-import { getCloudflareUser } from "../../../auth";
+import { getAdminUser } from "../../../admin-auth";
 import { getDb } from "../../../../db";
 import { aiApiKeys, aiChannels, assessments, competencies, competencyStates, conversations, evidence, learnerProfiles, learningTasks } from "../../../../db/schema";
 import { apiError } from "../../../../lib/api-response";
@@ -9,10 +9,7 @@ import { isKeyCoolingDown } from "../../../../lib/ai-key-health";
 type Check = { id: string; label: string; status: "pass" | "warn" | "fail"; detail: string };
 
 async function authorized() {
-  const user = await getCloudflareUser();
-  if (!user) return false;
-  const allowlist = env.AI_ADMIN_EMAILS?.toLowerCase().split(/[\s,;]+/).filter(Boolean) ?? [];
-  return allowlist.length === 0 || allowlist.includes(user.userId);
+  return Boolean(await getAdminUser());
 }
 
 export async function GET() {
@@ -22,6 +19,9 @@ export async function GET() {
   checks.push(env.AUTH_SESSION_SECRET || env.AI_KEY_ENCRYPTION_SECRET
     ? { id: "session", label: "会话签名密钥", status: "pass", detail: env.AUTH_SESSION_SECRET ? "AUTH_SESSION_SECRET 已配置。" : "使用用途隔离后的 AI 加密密钥签名会话。" }
     : { id: "session", label: "会话签名密钥", status: "fail", detail: "请配置 AUTH_SESSION_SECRET。" });
+  checks.push(env.AI && env.VECTORIZE
+    ? { id: "rag", label: "知识库向量服务", status: "pass", detail: "Workers AI 与 Vectorize 绑定均可用。" }
+    : { id: "rag", label: "知识库向量服务", status: "fail", detail: "请配置 AI 和 VECTORIZE Worker 绑定。" });
 
   const secret = env.AI_KEY_ENCRYPTION_SECRET;
   checks.push(secret?.length >= 24
