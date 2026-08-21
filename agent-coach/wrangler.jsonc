@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agent-engineering-coach",
+  "account_id": "7f3ff9c779a7536b3d0caca7a2ae9fd7",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "agent-engineering-coach", "database_id": "fea74aa5-dc8e-49ef-8be5-a84393b1f394", "migrations_dir": "drizzle" }],
+  "observability": { "enabled": true }
+}

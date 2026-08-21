@@ -1,10 +1,10 @@
-import { getChatGPTUser } from "../../../chatgpt-auth";
+import { getCloudflareUser } from "../../../auth";
 import { deleteAIChannel, listAIChannels, saveAIChannels, type ChannelInput } from "../../../../lib/ai-settings";
 
 async function authorized() {
-  const user = await getChatGPTUser();
+  const user = await getCloudflareUser();
   if (!user) return false;
-  const allowlist = process.env.AI_ADMIN_USER_IDS?.split(/[\s,;]+/).filter(Boolean) ?? [];
+  const allowlist = process.env.AI_ADMIN_EMAILS?.toLowerCase().split(/[\s,;]+/).filter(Boolean) ?? [];
   return allowlist.length === 0 || allowlist.includes(user.userId);
 }
 

@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getCloudflareUser } from "../../auth";
 import { getDb } from "../../../db";
 import { competencies, competencyStates, evidence, learnerProfiles, learningTasks } from "../../../db/schema";
 
@@ -13,7 +13,7 @@ function assessToolDesign(content: string) {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getCloudflareUser();
   if (!user) return Response.json({ error: "请先登录后再提交学习证据。" }, { status: 401 });
   const body = await request.json() as { content?: string };
   const content = body.content?.trim();
