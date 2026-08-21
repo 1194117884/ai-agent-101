@@ -13,6 +13,7 @@
   "vars": {
     "GOOGLE_CLIENT_ID": "12332638349-bep7ppcc9ql08grliduhbpa2bjbc5aot.apps.googleusercontent.com",
     "AI_ADMIN_EMAILS": "qq1194117884@gmail.com",
-    "KNOWLEDGE_EMBEDDING_MODEL": "@cf/baai/bge-m3"
+    "KNOWLEDGE_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+    "KNOWLEDGE_VECTOR_PROVIDER": "cloudflare"
   }
 }

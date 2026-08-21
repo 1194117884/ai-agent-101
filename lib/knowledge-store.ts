@@ -1,12 +1,28 @@
-import { env } from "cloudflare:workers";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
+import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIMENSIONS } from "./knowledge-vector";
 export type { KnowledgeDocumentInput } from "./knowledge";
 
 export async function listKnowledgeDocuments() {
   return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
+}
+
+export async function getKnowledgeStats() {
+  const [stats] = await getDb().select({
+    documentCount: sql<number>`count(*)`,
+    chunkCount: sql<number>`coalesce(sum(${sourceDocuments.chunkCount}), 0)`,
+  }).from(sourceDocuments);
+  const chunkCount = Number(stats?.chunkCount ?? 0);
+  return {
+    documentCount: Number(stats?.documentCount ?? 0),
+    chunkCount,
+    vectorDimensions: KNOWLEDGE_VECTOR_DIMENSIONS,
+    freeVectorCapacity: FREE_VECTOR_CAPACITY,
+    capacityPercent: Math.min(100, Number(((chunkCount / FREE_VECTOR_CAPACITY) * 100).toFixed(1))),
+    provider: "cloudflare",
+  };
 }
 
 export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
@@ -27,7 +43,10 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
 export async function deleteKnowledgeDocument(id: string) {
   const db = getDb();
   const vectors = await db.select({ vectorId: knowledgeChunks.vectorId }).from(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
-  if (vectors.length) await env.VECTORIZE.deleteByIds(vectors.map((item) => item.vectorId));
+  if (vectors.length) {
+    try { await getKnowledgeVectorProvider().delete(vectors.map((item) => item.vectorId)); }
+    catch { /* D1 remains the source of truth; stale vectors cannot pass the join filter. */ }
+  }
   await db.delete(sourceDocuments).where(eq(sourceDocuments.id, id));
 }
 
@@ -41,22 +60,34 @@ export async function indexKnowledgeDocument(id: string) {
   try {
     const chunks = splitKnowledgeText(document.content);
     if (!chunks.length) throw new Error("资料无法切分。");
-    const model = env.KNOWLEDGE_EMBEDDING_MODEL ?? "@cf/baai/bge-m3";
-    const result = await env.AI.run(model, { text: chunks.map((chunk) => chunk.content), truncate_inputs: true }) as { data?: number[][] };
-    if (!result.data || result.data.length !== chunks.length) throw new Error("Embedding 返回数量与切片不一致。");
     const timestamp = new Date().toISOString();
-    const rows = await Promise.all(chunks.map(async (chunk) => ({ id: crypto.randomUUID(), sourceDocumentId: id, ordinal: chunk.ordinal, content: chunk.content, contentHash: await sha256(chunk.content), tokenEstimate: chunk.tokenEstimate, vectorId: `${id}:${chunk.ordinal}`, status: "indexed", indexedAt: timestamp })));
+    const rows = await Promise.all(chunks.map(async (chunk) => {
+      const contentHash = await sha256(chunk.content);
+      return { id: crypto.randomUUID(), sourceDocumentId: id, ordinal: chunk.ordinal, content: chunk.content, contentHash, tokenEstimate: chunk.tokenEstimate, vectorId: `${id}:${chunk.ordinal}:${contentHash.slice(0, 8)}`, status: "lexical", indexedAt: timestamp };
+    }));
     const oldVectors = await db.select({ vectorId: knowledgeChunks.vectorId }).from(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
-    await env.VECTORIZE.upsert(rows.map((row, index) => ({ id: row.vectorId, values: result.data![index], namespace: "knowledge", metadata: { documentId: id, ordinal: row.ordinal, status: "approved" } })));
-    const retained = new Set(rows.map((row) => row.vectorId));
-    const obsolete = oldVectors.filter((item) => !retained.has(item.vectorId)).map((item) => item.vectorId);
-    if (obsolete.length) await env.VECTORIZE.deleteByIds(obsolete);
+    let providerName = "unavailable";
+    let mode: "indexed" | "lexical" = "indexed";
+    let ingestionError: string | null = null;
+    try {
+      const provider = getKnowledgeVectorProvider();
+      providerName = provider.name;
+      const embeddings = await provider.embed(chunks.map((chunk) => chunk.content));
+      await provider.upsert(rows.map((row, index) => ({ id: row.vectorId, values: embeddings[index], documentId: id, ordinal: row.ordinal })));
+      for (const row of rows) row.status = "indexed";
+      const retained = new Set(rows.map((row) => row.vectorId));
+      const obsolete = oldVectors.filter((item) => !retained.has(item.vectorId)).map((item) => item.vectorId);
+      await provider.delete(obsolete);
+    } catch (error) {
+      mode = "lexical";
+      ingestionError = `向量服务暂不可用，已启用免费关键词召回：${error instanceof Error ? error.message.slice(0, 160) : "未知错误"}`;
+    }
     await db.batch([
       db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id)),
       db.insert(knowledgeChunks).values(rows),
-      db.update(sourceDocuments).set({ ingestionStatus: "indexed", chunkCount: rows.length, lastIndexedAt: timestamp, ingestionError: null, reviewedAt: document.reviewedAt ?? timestamp, updatedAt: timestamp }).where(eq(sourceDocuments.id, id)),
+      db.update(sourceDocuments).set({ ingestionStatus: mode, chunkCount: rows.length, lastIndexedAt: timestamp, ingestionError, reviewedAt: document.reviewedAt ?? timestamp, updatedAt: timestamp }).where(eq(sourceDocuments.id, id)),
     ]);
-    return { chunkCount: rows.length, model };
+    return { chunkCount: rows.length, mode, provider: providerName, warning: ingestionError };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 240) : "未知索引错误";
     await db.update(sourceDocuments).set({ ingestionStatus: "failed", ingestionError: message, updatedAt: new Date().toISOString() }).where(eq(sourceDocuments.id, id));

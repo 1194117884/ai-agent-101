@@ -1,8 +1,8 @@
-import { env } from "cloudflare:workers";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, sourceDocuments } from "../db/schema";
 import { knowledgeLexicalScore } from "./knowledge";
+import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
 type Candidate = { vectorId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
 
@@ -10,16 +10,11 @@ export async function retrieveKnowledge(query: string, limit = 5) {
   const db = getDb();
   let vectorScores = new Map<string, number>();
   try {
-    const model = env.KNOWLEDGE_EMBEDDING_MODEL ?? "@cf/baai/bge-m3";
-    const embedding = await env.AI.run(model, { text: [query], truncate_inputs: true }) as { data?: number[][] };
-    if (embedding.data?.[0]) {
-      const matches = await env.VECTORIZE.query(embedding.data[0], { topK: 10, namespace: "knowledge" });
-      vectorScores = new Map(matches.matches.map((match) => [match.id, match.score]));
-    }
+    vectorScores = await getKnowledgeVectorProvider().query(query, 10);
   } catch { /* Lexical retrieval remains available if embeddings or Vectorize fail. */ }
 
   const baseQuery = () => db.select({ vectorId: knowledgeChunks.vectorId, content: knowledgeChunks.content, title: sourceDocuments.title, url: sourceDocuments.url, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel }).from(knowledgeChunks).innerJoin(sourceDocuments, eq(knowledgeChunks.sourceDocumentId, sourceDocuments.id));
-  const approved = and(eq(sourceDocuments.status, "approved"), eq(sourceDocuments.ingestionStatus, "indexed"), eq(knowledgeChunks.status, "indexed"));
+  const approved = and(eq(sourceDocuments.status, "approved"), or(eq(sourceDocuments.ingestionStatus, "indexed"), eq(sourceDocuments.ingestionStatus, "lexical")), or(eq(knowledgeChunks.status, "indexed"), eq(knowledgeChunks.status, "lexical")));
   const [semanticRows, lexicalRows] = await Promise.all([
     vectorScores.size ? baseQuery().where(and(approved, inArray(knowledgeChunks.vectorId, [...vectorScores.keys()]))) : Promise.resolve([]),
     baseQuery().where(approved).orderBy(desc(sourceDocuments.updatedAt)).limit(160),
