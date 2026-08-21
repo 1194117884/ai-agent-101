@@ -3,6 +3,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { aiApiKeys, aiChannels } from "../db/schema";
 import { ChannelValidationError, validateAIChannels, type ChannelInput } from "./ai-channel-validation";
+import { selectRunnableKeys } from "./ai-key-health";
 export type { ChannelInput } from "./ai-channel-validation";
 
 const encoder = new TextEncoder();
@@ -107,9 +108,9 @@ export async function databaseAIConfiguration() {
   for (const channel of channels) {
     const rows = await db.select().from(aiApiKeys).where(eq(aiApiKeys.channelId, channel.id)).orderBy(asc(aiApiKeys.createdAt));
     const prefix = channel.slug.toUpperCase();
-    const enabledRows = rows.filter((row) => row.enabled);
-    const keys = await Promise.all(enabledRows.map((row) => decrypt(row.encryptedKey)));
-    keys.forEach((key, index) => keyIds.set(`${channel.slug}\u0000${key}`, enabledRows[index].id));
+    const runnableRows = selectRunnableKeys(rows.filter((row) => row.enabled));
+    const keys = await Promise.all(runnableRows.map((row) => decrypt(row.encryptedKey)));
+    keys.forEach((key, index) => keyIds.set(`${channel.slug}\u0000${key}`, runnableRows[index].id));
     output[`${prefix}_API_KEYS`] = JSON.stringify(keys);
     if (!keys.length) continue;
     output[`${prefix}_MODEL`] = channel.model;

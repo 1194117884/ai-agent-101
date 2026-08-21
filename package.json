@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "deploy": "vinext-cloudflare deploy",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs && node --experimental-strip-types --test tests/coach-providers.test.ts tests/api-response.test.ts tests/ai-channel-validation.test.ts",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs && node --experimental-strip-types --test tests/coach-providers.test.ts tests/api-response.test.ts tests/ai-channel-validation.test.ts tests/ai-key-health.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "curriculum:generate": "node scripts/generate-curriculum.mjs",

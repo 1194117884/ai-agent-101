@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { isKeyCoolingDown } from "../../../lib/ai-key-health";
 
 type KeyItem = { id?: string; label: string; value?: string; keyHint?: string; enabled: boolean; failureCount?: number; lastUsedAt?: string | null; lastError?: string | null };
 type Channel = { id?: string; slug: string; displayName: string; protocol: "anthropic" | "openai-compatible"; baseUrl: string; model: string; priority: number; enabled: boolean; keys: KeyItem[] };
 
 function keyHealth(key: KeyItem) {
   if (!key.id) return "尚未保存";
+  if (isKeyCoolingDown({ failureCount: key.failureCount ?? 0, lastUsedAt: key.lastUsedAt ?? null })) return `冷却中 · 连续失败 ${key.failureCount} 次 · ${key.lastError ?? "未知错误"}`;
   if (key.failureCount) return `连续失败 ${key.failureCount} 次 · ${key.lastError ?? "未知错误"}`;
   if (key.lastUsedAt) return `最近成功：${new Date(key.lastUsedAt).toLocaleString("zh-CN")}`;
   return "尚未调用";
