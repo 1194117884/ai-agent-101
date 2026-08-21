@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Starter Project",
-  description: "A clean starting point for building your site.",
+  title: "阿建 · Agent Engineering 私教",
+  description: "个人 Agent Engineering 学习、评估与 AI 教师管理平台。",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -1,3 +1,93 @@
-export type CoachReply = { answer:string; followUp:string; focus:string; source:string };
-export async function generateCoachReply(message:string, priorScore:number|null):Promise<CoachReply>{const key=process.env.ANTHROPIC_API_KEY;if(!key)return coach(message,priorScore);try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:process.env.ANTHROPIC_MODEL??"claude-sonnet-4-5",max_tokens:700,system:"你是阿建，一名务实的 Agent Engineering 私教。基于课程与证据答疑；先拆小问题，再给可验收的下一步。输出 JSON：answer、followUp、focus、source。",messages:[{role:"user",content:`课程：基础能力划分和修订教学大纲。最近评分：${priorScore??"无"}。学生：${message}`}]})});if(!r.ok)return coach(message,priorScore);const d=await r.json() as {content?:{type:string;text?:string}[]};const t=d.content?.find(x=>x.type==="text")?.text??"";const j=JSON.parse(t.match(/\{[\s\S]*\}/)?.[0]??"{}");return {answer:String(j.answer??""),followUp:String(j.followUp??""),focus:String(j.focus??""),source:String(j.source??"课程知识库")}}catch{return coach(message,priorScore)}}
-export function coach(message:string, priorScore:number|null):CoachReply { const text=message.toLowerCase(); const weak=priorScore !== null && priorScore < 100; if(/不会|不懂|什么是|区别/.test(message)){return {answer:"先不要急着记概念。工具设计的核心不是把 API 包起来，而是让 Agent 在正确时机选到一个动作，并在失败时知道下一步。",followUp:"请用一句话分别说明：工具的 description 回答什么问题？错误返回又回答什么问题？",focus:"Tool Design / Function Calling",source:"基础能力划分 · Tool Design / Function Calling"};} if(/schema|参数|json/.test(text)){return {answer:"把 schema 当作 Agent 的操作边界：字段少、含义唯一、约束明确。description 负责选择，schema 负责正确调用，错误返回负责恢复。",followUp:"把你当前的 schema 贴出来，并标出一个你认为最容易误用的字段。",focus:"Structured Output / Contracts",source:"基础能力划分 · Structured Output / Contracts"};} return {answer:weak?"你上一份工具契约还有未覆盖的验收点。先补齐这些，再扩展到更多工具。":"你的提交已覆盖基础验收点，可以开始把能力迁移到工具选择评估。",followUp:weak?"请补写一个失败返回：它必须说明失败原因和可执行的下一步。":"写 2 个应调用 search 的场景，和 2 个不应调用它的场景。",focus:weak?"Tool Design / Function Calling":"Evaluation / Benchmark",source:"修订教学大纲 · 阶段 1 与阶段 4"}; }
+export type CoachReply = { answer: string; followUp: string; focus: string; source: string };
+
+type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
+type Environment = Record<string, string | undefined>;
+type Provider = { name: ProviderName; keys: string[]; model: string; endpoint: string };
+
+const SYSTEM_PROMPT = "你是阿建，一名务实的 Agent Engineering 私教。基于课程与证据答疑；先拆小问题，再给可验收的下一步。只输出 JSON 对象，字段为 answer、followUp、focus、source。";
+const DEFAULT_PROVIDER_ORDER: ProviderName[] = ["anthropic", "openai", "deepseek", "openrouter"];
+const roundRobinCursor = new Map<ProviderName, number>();
+
+function parseKeys(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  const trimmed = value.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String).map((key) => key.trim()).filter(Boolean);
+    } catch {
+      // Fall through to the delimiter format.
+    }
+  }
+  return trimmed.split(/[\s,;]+/).map((key) => key.trim()).filter(Boolean);
+}
+
+function providerOrder(value: string | undefined): ProviderName[] {
+  if (!value) return DEFAULT_PROVIDER_ORDER;
+  const allowed = new Set<ProviderName>(DEFAULT_PROVIDER_ORDER);
+  const parsed = value.toLowerCase().split(/[\s,;]+/)
+    .filter((name): name is ProviderName => allowed.has(name as ProviderName));
+  return parsed.length ? [...new Set(parsed)] : DEFAULT_PROVIDER_ORDER;
+}
+
+export function configuredProviders(env: Environment): Provider[] {
+  const providers: Record<ProviderName, Provider> = {
+    anthropic: { name: "anthropic", keys: parseKeys(env.ANTHROPIC_API_KEYS ?? env.ANTHROPIC_API_KEY), model: env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5", endpoint: env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com/v1/messages" },
+    openai: { name: "openai", keys: parseKeys(env.OPENAI_API_KEYS ?? env.OPENAI_API_KEY), model: env.OPENAI_MODEL ?? "gpt-4.1-mini", endpoint: env.OPENAI_BASE_URL ?? "https://api.openai.com/v1/chat/completions" },
+    deepseek: { name: "deepseek", keys: parseKeys(env.DEEPSEEK_API_KEYS ?? env.DEEPSEEK_API_KEY), model: env.DEEPSEEK_MODEL ?? "deepseek-chat", endpoint: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/chat/completions" },
+    openrouter: { name: "openrouter", keys: parseKeys(env.OPENROUTER_API_KEYS ?? env.OPENROUTER_API_KEY), model: env.OPENROUTER_MODEL ?? "openai/gpt-4.1-mini", endpoint: env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1/chat/completions" },
+  };
+  return providerOrder(env.AI_PROVIDER_ORDER).map((name) => providers[name]).filter((provider) => provider.keys.length > 0);
+}
+
+function rotateKeys(provider: Provider): string[] {
+  const cursor = roundRobinCursor.get(provider.name) ?? 0;
+  roundRobinCursor.set(provider.name, cursor + 1);
+  const start = cursor % provider.keys.length;
+  return provider.keys.map((_, index) => provider.keys[(start + index) % provider.keys.length]);
+}
+
+function requestFor(provider: Provider, key: string, prompt: string): RequestInit {
+  if (provider.name === "anthropic") {
+    return { method: "POST", headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: provider.model, max_tokens: 700, system: SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }] }) };
+  }
+  return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 700, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] }) };
+}
+
+function responseText(provider: Provider, data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  if (provider.name === "anthropic") return (data as { content?: { type?: string; text?: string }[] }).content?.find((item) => item.type === "text")?.text ?? "";
+  return (data as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "";
+}
+
+function parseReply(text: string): CoachReply | null {
+  try {
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}");
+    if (!json.answer || !json.followUp) return null;
+    return { answer: String(json.answer), followUp: String(json.followUp), focus: String(json.focus ?? "Agent Engineering"), source: String(json.source ?? "课程知识库") };
+  } catch { return null; }
+}
+
+export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch): Promise<CoachReply> {
+  const prompt = `课程：基础能力划分和修订教学大纲。最近评分：${priorScore ?? "无"}。学生：${message}`;
+  for (const provider of configuredProviders(env)) {
+    for (const key of rotateKeys(provider)) {
+      try {
+        const response = await fetcher(provider.endpoint, requestFor(provider, key, prompt));
+        if (!response.ok) continue;
+        const reply = parseReply(responseText(provider, await response.json()));
+        if (reply) return reply;
+      } catch {
+        // Try the next key, then the next configured provider.
+      }
+    }
+  }
+  return coach(message, priorScore);
+}
+
+export function coach(message: string, priorScore: number | null): CoachReply {
+  const text = message.toLowerCase(); const weak = priorScore !== null && priorScore < 100;
+  if (/不会|不懂|什么是|区别/.test(message)) return { answer: "先不要急着记概念。工具设计的核心不是把 API 包起来，而是让 Agent 在正确时机选到一个动作，并在失败时知道下一步。", followUp: "请用一句话分别说明：工具的 description 回答什么问题？错误返回又回答什么问题？", focus: "Tool Design / Function Calling", source: "基础能力划分 · Tool Design / Function Calling" };
+  if (/schema|参数|json/.test(text)) return { answer: "把 schema 当作 Agent 的操作边界：字段少、含义唯一、约束明确。description 负责选择，schema 负责正确调用，错误返回负责恢复。", followUp: "把你当前的 schema 贴出来，并标出一个你认为最容易误用的字段。", focus: "Structured Output / Contracts", source: "基础能力划分 · Structured Output / Contracts" };
+  return { answer: weak ? "你上一份工具契约还有未覆盖的验收点。先补齐这些，再扩展到更多工具。" : "你的提交已覆盖基础验收点，可以开始把能力迁移到工具选择评估。", followUp: weak ? "请补写一个失败返回：它必须说明失败原因和可执行的下一步。" : "写 2 个应调用 search 的场景，和 2 个不应调用它的场景。", focus: weak ? "Tool Design / Function Calling" : "Evaluation / Benchmark", source: "修订教学大纲 · 阶段 1 与阶段 4" };
+}

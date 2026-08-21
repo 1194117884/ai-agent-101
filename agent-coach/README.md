@@ -94,6 +94,23 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm test`: build the starter and verify its rendered loading skeleton
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
+## AI providers and key load balancing
+
+Copy `.env.example` to `.env` and configure one or more of Anthropic, OpenAI,
+DeepSeek, and OpenRouter. Each `*_API_KEYS` setting accepts multiple keys
+(comma/semicolon/whitespace separated, or a JSON array). Requests start at a
+different key on each call; failed keys are skipped automatically before the
+next provider in `AI_PROVIDER_ORDER` is tried. The existing singular
+`*_API_KEY` variables are also supported.
+
+Keep `.env` local and configure the same values as encrypted secrets in the
+hosting environment. Never commit real API keys.
+
+The signed-in management page at `/admin/ai` stores channel settings in D1 and
+encrypts API keys with `AI_KEY_ENCRYPTION_SECRET`. Database configuration takes
+precedence; environment-provider settings remain the fallback when the database
+has no enabled channels.
+
 ## Learn More
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
