@@ -6,10 +6,13 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "vinext/server/fetch-handler",
   "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
+  "ai": { "binding": "AI" },
+  "vectorize": [{ "binding": "VECTORIZE", "index_name": "agent-knowledge" }],
   "d1_databases": [{ "binding": "DB", "database_name": "agent-engineering-coach", "database_id": "fea74aa5-dc8e-49ef-8be5-a84393b1f394", "migrations_dir": "drizzle" }],
   "observability": { "enabled": true },
   "vars": {
     "GOOGLE_CLIENT_ID": "12332638349-bep7ppcc9ql08grliduhbpa2bjbc5aot.apps.googleusercontent.com",
-    "AI_ADMIN_EMAILS": "qq1194117884@gmail.com"
+    "AI_ADMIN_EMAILS": "qq1194117884@gmail.com",
+    "KNOWLEDGE_EMBEDDING_MODEL": "@cf/baai/bge-m3"
   }
 }

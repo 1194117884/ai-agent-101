@@ -20,3 +20,11 @@
 - [x] 在管理页提供 Access、D1、加密密钥、渠道与 Key 池生产验收面板。
 - [x] 使用 Google One Tap 和签名 Cookie 替代付费 Cloudflare Access。
 - [ ] 完成 Google OAuth 来源配置与正式域名生产验收。
+
+## 知识库 RAG
+
+- [x] 创建 Cloudflare Vectorize 索引，并绑定 Workers AI `bge-m3`。
+- [x] 建立资料正文、索引状态与知识切片的 D1 数据模型。
+- [ ] 实现后台资料录入、审核、切片、向量化和重建。
+- [ ] 实现前台混合召回、Coach 上下文注入和资料引用。
+- [ ] 完成生产迁移与端到端 RAG 验收。
