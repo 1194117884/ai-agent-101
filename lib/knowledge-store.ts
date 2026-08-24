@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
@@ -27,6 +27,22 @@ export async function getKnowledgeStats() {
 
 export async function listKnowledgeRetrievalLogs(limit = 30) {
   return getDb().select({ id: knowledgeRetrievalLogs.id, query: knowledgeRetrievalLogs.query, retrievalMode: knowledgeRetrievalLogs.retrievalMode, resultCount: knowledgeRetrievalLogs.resultCount, matchesJson: knowledgeRetrievalLogs.matchesJson, durationMs: knowledgeRetrievalLogs.durationMs, vectorError: knowledgeRetrievalLogs.vectorError, createdAt: knowledgeRetrievalLogs.createdAt }).from(knowledgeRetrievalLogs).orderBy(desc(knowledgeRetrievalLogs.createdAt)).limit(Math.min(100, Math.max(1, limit)));
+}
+
+export async function bulkSetKnowledgeStatus(ids: string[], status: "approved" | "archived") {
+  if (!ids.length) return 0;
+  const now = new Date().toISOString();
+  const result = await getDb().update(sourceDocuments).set(status === "approved" ? { status, reviewedAt: now, updatedAt: now } : { status, updatedAt: now }).where(inArray(sourceDocuments.id, ids));
+  return result.meta.changes ?? 0;
+}
+
+export async function bulkIndexKnowledgeDocuments(ids: string[]) {
+  const results: { id: string; ok: boolean; chunkCount?: number; mode?: string; error?: string }[] = [];
+  for (const id of ids) {
+    try { results.push({ id, ok: true, ...await indexKnowledgeDocument(id) }); }
+    catch (error) { results.push({ id, ok: false, error: error instanceof Error ? error.message : "索引失败" }); }
+  }
+  return results;
 }
 
 export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
