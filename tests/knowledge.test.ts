@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { knowledgeLexicalScore, knowledgeSearchTerms, MAX_DOCUMENT_CHARS, normalizeKnowledgeText, splitKnowledgeText, validateKnowledgeDocument } from "../lib/knowledge.ts";
-import { assertImportContent, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
+import { assertImportContent, fetchPublicKnowledgePage, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
 import { evaluateRetrievedKnowledge, parseExpectedTerms } from "../lib/knowledge-eval-core.ts";
 
 test("normalizes and splits knowledge with stable overlap", () => {
@@ -40,6 +40,19 @@ test("sanitizes imported HTML and derives useful metadata", () => {
 test("blocks private import targets and unsafe URL forms", () => {
   assert.equal(validateImportUrl("https://example.com/guide").hostname, "example.com");
   for (const value of ["http://127.0.0.1", "http://10.0.0.8", "http://192.168.1.1", "http://[::1]", "http://metadata.google.internal", "https://user:pass@example.com"]) assert.throws(() => validateImportUrl(value), /不允许|只允许/);
+});
+
+test("fetches public pages through validated redirects", async () => {
+  const seen: string[] = [];
+  const fetcher = async (input: string | URL | Request) => {
+    const url = String(input); seen.push(url);
+    if (url.endsWith("/start")) return new Response(null, { status: 302, headers: { location: "/guide" } });
+    return new Response("<title>Agent Guide</title><main>这是一份足够长的工具契约网页资料，包含 schema 与失败恢复。</main>", { headers: { "content-type": "text/html; charset=utf-8" } });
+  };
+  const page = await fetchPublicKnowledgePage("https://example.com/start", fetcher as typeof fetch);
+  assert.deepEqual(seen, ["https://example.com/start", "https://example.com/guide"]);
+  assert.equal(page.title, "Agent Guide");
+  assert.match(page.content, /schema 与失败恢复/);
 });
 
 test("evaluates expected RAG document and terms", () => {

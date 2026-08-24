@@ -2,6 +2,7 @@ import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
+import { fetchPublicKnowledgePage } from "./knowledge-import";
 import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIMENSIONS } from "./knowledge-vector";
 export type { KnowledgeDocumentInput } from "./knowledge";
 
@@ -54,11 +55,29 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
     if (!existing) throw new Error("资料不存在，请刷新后重试。");
   }
   const contentHash = await sha256(content);
+  if (!input.id) {
+    const [duplicate] = await db.select({ id: sourceDocuments.id }).from(sourceDocuments).where(eq(sourceDocuments.contentHash, contentHash)).limit(1);
+    if (duplicate) return { id: duplicate.id, duplicate: true };
+  }
   const values = { title: input.title.trim(), url: input.url?.trim() || `manual://${id}`, sourceType: input.sourceType, versionLabel: input.versionLabel?.trim() || null, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: new Date().toISOString() };
   if (input.id) await db.update(sourceDocuments).set(values).where(eq(sourceDocuments.id, id));
   else await db.insert(sourceDocuments).values({ id, reviewedAt: input.status === "approved" ? new Date().toISOString() : null, ...values });
-  return id;
+  return { id, duplicate: false };
 }
+
+export async function refreshKnowledgeDocument(id: string) {
+  const db = getDb();
+  const [document] = await db.select().from(sourceDocuments).where(eq(sourceDocuments.id, id)).limit(1);
+  if (!document) throw new Error("资料不存在。");
+  if (document.sourceType !== "web" || document.url.startsWith("manual://")) throw new Error("只有网页资料可以重新抓取。");
+  const page = await fetchPublicKnowledgePage(document.url);
+  const contentHash = await sha256(page.content);
+  if (contentHash === document.contentHash) return { changed: false, id, title: document.title };
+  const saved = await saveKnowledgeDocument({ id, title: document.title, url: page.url, sourceType: "web", versionLabel: document.versionLabel ?? undefined, trustLevel: document.trustLevel as KnowledgeDocumentInput["trustLevel"], status: document.status as KnowledgeDocumentInput["status"], topicIds: safeStringArray(document.topicIdsJson), summary: document.summary ?? undefined, content: page.content });
+  return { changed: true, id: saved.id, title: document.title };
+}
+
+function safeStringArray(value: string) { try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []; } catch { return []; } }
 
 export async function deleteKnowledgeDocument(id: string) {
   const db = getDb();

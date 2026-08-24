@@ -15,8 +15,8 @@ export async function POST(request: Request) {
   if (!await getAdminUser()) return apiError("无权管理知识库。", 403, "FORBIDDEN");
   try {
     const input = await request.json() as KnowledgeDocumentInput;
-    const id = await saveKnowledgeDocument(input);
-    return Response.json({ ok: true, id }, { status: input.id ? 200 : 201 });
+    const saved = await saveKnowledgeDocument(input);
+    return Response.json({ ok: true, ...saved }, { status: input.id || saved.duplicate ? 200 : 201 });
   } catch (error) {
     if (error instanceof SyntaxError) return apiError("资料格式不正确。", 400, "INVALID_INPUT");
     if (error instanceof Error && /不能为空|至少|不能超过|无效|URL|不存在/.test(error.message)) return apiError(error.message, 400, "INVALID_INPUT");

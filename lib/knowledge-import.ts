@@ -63,3 +63,23 @@ export async function readLimitedText(response: Response) {
   for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
   return new TextDecoder().decode(body);
 }
+
+export async function fetchPublicKnowledgePage(value: string, fetcher: typeof fetch = fetch) {
+  let url = validateImportUrl(value);
+  for (let redirects = 0; redirects <= 3; redirects += 1) {
+    const response = await fetcher(url, { redirect: "manual", headers: { accept: "text/html,text/plain,text/markdown", "user-agent": "AgentCoachKnowledgeImporter/1.0" } });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location || redirects === 3) throw new Error("网页重定向次数过多。");
+      url = validateImportUrl(new URL(location, url).toString());
+      continue;
+    }
+    if (!response.ok) throw new Error(`网页返回 HTTP ${response.status}。`);
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.includes("text/html") && !contentType.includes("text/plain") && !contentType.includes("text/markdown") && !contentType.includes("application/xhtml")) throw new Error("网页不是可导入的文本格式。");
+    const raw = await readLimitedText(response);
+    const content = assertImportContent(contentType.includes("html") || contentType.includes("xhtml") ? htmlToKnowledgeText(raw) : raw);
+    return { title: pageTitle(raw, url), url: url.toString(), content };
+  }
+  throw new Error("网页抓取失败。");
+}
