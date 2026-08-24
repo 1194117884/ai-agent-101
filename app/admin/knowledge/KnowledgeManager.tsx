@@ -14,6 +14,8 @@ export function KnowledgeManager() {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [retrievalLogs, setRetrievalLogs] = useState<RetrievalLog[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [importUrls, setImportUrls] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [notice, setNotice] = useState("");
@@ -28,6 +30,22 @@ export function KnowledgeManager() {
       const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "保存失败");
       setForm(emptyForm); await load(); setNotice("资料已保存。已审核资料还需要点击建立索引。 ");
     } catch (error) { setNotice(error instanceof Error ? error.message : "保存失败"); }
+    finally { setWorking(""); }
+  }
+  async function batchImport() {
+    const urls = importUrls.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (importFiles.length + urls.length === 0) return setNotice("请选择 Markdown/TXT 文件或填写网页地址。");
+    if (importFiles.length + urls.length > 20) return setNotice("每批最多导入 20 份资料。");
+    setWorking("import"); setNotice("正在批量导入资料…");
+    try {
+      const files = await Promise.all(importFiles.map(async (file) => ({ filename: file.name, content: await file.text() })));
+      const response = await fetch("/api/admin/knowledge/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ files, urls }) });
+      const data = await response.json();
+      if (!response.ok && !data.results) throw new Error(data.error ?? "批量导入失败");
+      setImportFiles([]); setImportUrls(""); await load();
+      const failures = (data.results ?? []).filter((item: { ok: boolean }) => !item.ok).map((item: { source: string; error?: string }) => `${item.source}: ${item.error}`).slice(0, 3);
+      setNotice(`导入完成：成功 ${data.imported ?? 0}，失败 ${data.failed ?? 0}${failures.length ? `。${failures.join("；")}` : ""}`);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "批量导入失败"); }
     finally { setWorking(""); }
   }
   async function indexDocument(document: DocumentItem) {
@@ -46,6 +64,7 @@ export function KnowledgeManager() {
 
   return <main className="admin-shell knowledge-admin"><header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>知识库管理</h1><p>录入、审核、切片并向量化 Agent Engineering 资料。</p></div><Link href="/admin/ai" className="secondary-button">AI 渠道</Link></header>
     {stats && <section className="knowledge-stats" aria-label="免费额度概览"><div><small>资料</small><strong>{stats.documentCount}</strong><span>份</span></div><div><small>知识切片</small><strong>{stats.chunkCount.toLocaleString()}</strong><span>个</span></div><div><small>Vectorize 免费容量</small><strong>{stats.capacityPercent}%</strong><span>{stats.chunkCount.toLocaleString()} / 约 {stats.freeVectorCapacity.toLocaleString()}</span></div><div><small>召回保护</small><strong>双轨</strong><span>向量失败自动转关键词</span></div></section>}
+    <section className="knowledge-import channel-card"><div className="knowledge-form-title"><div><h2>批量导入</h2><p>支持 Markdown/TXT 文件和公开网页；导入后默认为草稿，需要审核再建立索引。</p></div></div><div className="import-grid"><label>本地文件（最多 20 份）<input key={importFiles.length ? "selected" : "empty"} type="file" accept=".md,.markdown,.txt,text/plain,text/markdown" multiple onChange={(event) => setImportFiles(Array.from(event.target.files ?? []))} /><span>{importFiles.length ? `已选择 ${importFiles.length} 份：${importFiles.map((file) => file.name).join("、")}` : "单份正文上限 200,000 字符"}</span></label><label>网页 URL（每行一个）<textarea value={importUrls} onChange={(event) => setImportUrls(event.target.value)} placeholder={"https://example.com/guide\nhttps://example.com/reference"} /></label></div><div className="form-actions"><span>整批最多 20 份；网页仅允许公开 HTTP(S) 地址</span><button className="primary-button" disabled={working === "import" || (!importFiles.length && !importUrls.trim())} onClick={batchImport}>{working === "import" ? "导入中…" : "开始导入"}</button></div></section>
     <section className="knowledge-form channel-card"><div className="knowledge-form-title"><div><h2>{form.id ? "编辑资料" : "录入资料"}</h2><p>只有“已审核”资料可以进入召回索引。</p></div>{form.id && <button className="secondary-button" onClick={() => setForm(emptyForm)}>取消编辑</button>}</div>
       <div className="field-grid"><label>标题<input value={form.title} onChange={(event) => update("title", event.target.value)} /></label><label>版本<input value={form.versionLabel} placeholder="例如 2026-08" onChange={(event) => update("versionLabel", event.target.value)} /></label><label className="wide">来源 URL（可选）<input value={form.url} placeholder="https://…" onChange={(event) => update("url", event.target.value)} /></label><label>资料类型<select value={form.sourceType} onChange={(event) => update("sourceType", event.target.value as FormState["sourceType"])}><option value="manual">手工资料</option><option value="web">网页</option><option value="note">笔记</option></select></label><label>可信级别<select value={form.trustLevel} onChange={(event) => update("trustLevel", event.target.value as FormState["trustLevel"])}><option value="primary">官方/一手</option><option value="trusted">可信资料</option><option value="reference">一般参考</option></select></label><label>审核状态<select value={form.status} onChange={(event) => update("status", event.target.value as FormState["status"])}><option value="draft">草稿</option><option value="approved">已审核</option><option value="archived">已归档</option></select></label><label>能力标签<input value={form.topics} placeholder="tools, eval, memory" onChange={(event) => update("topics", event.target.value)} /></label><label className="wide">摘要<input value={form.summary} onChange={(event) => update("summary", event.target.value)} /></label></div>
       <label className="knowledge-content-label">资料正文<textarea value={form.content} onChange={(event) => update("content", event.target.value)} placeholder="粘贴 Markdown、课程正文或整理后的网页内容…" /></label><div className="form-actions"><span>{form.content.length.toLocaleString()} / 200,000 字符</span><button className="primary-button" disabled={working === "save" || !form.title.trim() || form.content.trim().length < 20} onClick={save}>{working === "save" ? "保存中…" : "保存资料"}</button></div></section>
