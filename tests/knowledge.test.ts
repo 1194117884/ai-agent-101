@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { knowledgeLexicalScore, knowledgeSearchTerms, MAX_DOCUMENT_CHARS, normalizeKnowledgeText, splitKnowledgeText, validateKnowledgeDocument } from "../lib/knowledge.ts";
 import { assertImportContent, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
+import { evaluateRetrievedKnowledge, parseExpectedTerms } from "../lib/knowledge-eval-core.ts";
 
 test("normalizes and splits knowledge with stable overlap", () => {
   const text = `第一段。\r\n\r\n\r\n${"Agent 工具契约需要明确输入输出。".repeat(120)}`;
@@ -39,4 +40,12 @@ test("sanitizes imported HTML and derives useful metadata", () => {
 test("blocks private import targets and unsafe URL forms", () => {
   assert.equal(validateImportUrl("https://example.com/guide").hostname, "example.com");
   for (const value of ["http://127.0.0.1", "http://10.0.0.8", "http://192.168.1.1", "http://[::1]", "http://metadata.google.internal", "https://user:pass@example.com"]) assert.throws(() => validateImportUrl(value), /不允许|只允许/);
+});
+
+test("evaluates expected RAG document and terms", () => {
+  assert.deepEqual(parseExpectedTerms('["schema","参数",3]'), ["schema", "参数"]);
+  assert.equal(evaluateRetrievedKnowledge("doc-1", ["schema", "参数"], "JSON schema 定义参数类型", [{ documentId: "doc-1" }]).passed, true);
+  const failed = evaluateRetrievedKnowledge("doc-2", ["schema", "恢复"], "schema 参数", [{ documentId: "doc-1" }]);
+  assert.equal(failed.documentPassed, false);
+  assert.deepEqual(failed.missingTerms, ["恢复"]);
 });
