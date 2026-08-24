@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LEARNING_STATE_UPDATED } from "./learning-events";
 
 type Dashboard = { evidence: { id: string; competencyName: string; content: string; score: number | null; feedback: string | null; createdAt: string }[]; conversations: { id: string; role: string; content: string; source: string | null; createdAt: string }[]; error?: string };
 export function ActivityHistory() {
   const [data, setData] = useState<Dashboard>(); const [tab, setTab] = useState<"evidence" | "conversation">("evidence");
-  useEffect(() => { fetch("/api/dashboard").then((response) => response.json()).then(setData).catch(() => setData({ evidence: [], conversations: [], error: "历史记录加载失败。" })); }, []);
+  useEffect(() => { const load = () => { fetch("/api/dashboard").then((response) => response.json()).then(setData).catch(() => setData({ evidence: [], conversations: [], error: "历史记录加载失败。" })); }; load(); window.addEventListener(LEARNING_STATE_UPDATED, load); return () => window.removeEventListener(LEARNING_STATE_UPDATED, load); }, []);
   const items = tab === "evidence" ? data?.evidence ?? [] : data?.conversations ?? [];
   return <section className="panel history-panel"><div className="panel-heading"><div><span className="step-number">03</span><div><h2>学习记录</h2><p>所有证据与对话都从 D1 持久化读取。</p></div></div><div className="history-tabs"><button className={tab === "evidence" ? "active" : ""} onClick={() => setTab("evidence")}>学习证据</button><button className={tab === "conversation" ? "active" : ""} onClick={() => setTab("conversation")}>教师对话</button></div></div>{!data ? <div className="skeleton-line">正在读取历史记录…</div> : data.error ? <p className="empty-state">{data.error}</p> : items.length === 0 ? <p className="empty-state">还没有记录，完成第一次提交或提问后会显示在这里。</p> : <div className="timeline">{tab === "evidence" ? data.evidence.map((item) => <article key={item.id}><span className="timeline-mark evidence-mark"/><div><div className="timeline-meta"><strong>{item.competencyName}</strong><time>{formatDate(item.createdAt)}</time></div><p>{item.content}</p>{item.score !== null && <small>评分 {item.score}/100 · {item.feedback}</small>}</div></article>) : data.conversations.map((item) => <article key={item.id}><span className={`timeline-mark ${item.role === "coach" ? "coach-mark" : ""}`}/><div><div className="timeline-meta"><strong>{item.role === "coach" ? "阿建老师" : "我的提问"}</strong><time>{formatDate(item.createdAt)}</time></div><p>{item.content}</p>{item.source && <small>依据：{item.source}</small>}</div></article>)}</div>}</section>;
 }

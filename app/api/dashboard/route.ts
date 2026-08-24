@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getCloudflareUser } from "../../auth";
 import { getDb } from "../../../db";
 import { competencies, competencyStates, conversations, evidence, learnerProfiles, learningTasks } from "../../../db/schema";
+import { rubricLabels } from "../../../lib/rubric";
 
 export async function GET() {
   const user = await getCloudflareUser();
@@ -19,13 +20,9 @@ export async function GET() {
   const nameMap = Object.fromEntries(names.map((item) => [item.id, item.name]));
   return Response.json({
     profile: profile ?? { displayName: user.displayName, learningGoal: "掌握 Agent Engineering", weeklyHours: 8 },
-    task: task ? { ...task, rubric: safeArray(task.rubricJson) } : null,
+    task: task ? { ...task, rubric: rubricLabels(task.rubricJson) } : null,
     competencies: states.map((state) => ({ ...state, name: nameMap[state.competencyId] ?? state.competencyId })),
     evidence: recentEvidence.map((item) => ({ ...item, competencyName: nameMap[item.competencyId] ?? item.competencyId })),
     conversations: recentConversations.reverse(),
   });
-}
-
-function safeArray(value: string): string[] {
-  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; }
 }

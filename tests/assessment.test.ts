@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { rubricLabels } from "../lib/rubric.ts";
 import { assessmentCatalog, gradeAssessment } from "../lib/assessment.ts";
 
 const completeAnswers: Record<string, string> = {
@@ -35,4 +36,9 @@ test("incomplete answers expose missing criteria and error category", () => {
 
 test("unknown rubric versions are rejected", () => {
   assert.throws(() => gradeAssessment("missing", "answer"), /Unknown assessment/);
+});
+
+test("dashboard renders rubric objects as labels", () => {
+  assert.deepEqual(rubricLabels(JSON.stringify([{ id: "schema", label: "schema 约束输入" }, "明确失败返回", { id: "invalid" }])), ["schema 约束输入", "明确失败返回"]);
+  assert.deepEqual(rubricLabels("not-json"), []);
 });
