@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     }
     catch { /* Environment variables remain the fallback until D1 settings are available. */ }
     let knowledge = { context: "", sources: [] as { title: string; url: string | null; versionLabel: string | null; trustLevel: string }[] };
-    try { knowledge = await retrieveKnowledge(message); }
+    try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
     const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);
     await db.batch([

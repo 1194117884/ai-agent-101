@@ -1,17 +1,19 @@
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../db";
-import { knowledgeChunks, sourceDocuments } from "../db/schema";
+import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { knowledgeLexicalScore } from "./knowledge";
 import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
 type Candidate = { vectorId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
 
-export async function retrieveKnowledge(query: string, limit = 5) {
+export async function retrieveKnowledge(query: string, limit = 5, learnerId?: string) {
+  const startedAt = Date.now();
   const db = getDb();
   let vectorScores = new Map<string, number>();
+  let vectorError: string | null = null;
   try {
     vectorScores = await getKnowledgeVectorProvider().query(query, 10);
-  } catch { /* Lexical retrieval remains available if embeddings or Vectorize fail. */ }
+  } catch (error) { vectorError = error instanceof Error ? error.message.slice(0, 240) : "未知向量错误"; }
 
   const baseQuery = () => db.select({ vectorId: knowledgeChunks.vectorId, content: knowledgeChunks.content, title: sourceDocuments.title, url: sourceDocuments.url, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel }).from(knowledgeChunks).innerJoin(sourceDocuments, eq(knowledgeChunks.sourceDocumentId, sourceDocuments.id));
   const approved = and(eq(sourceDocuments.status, "approved"), or(eq(sourceDocuments.ingestionStatus, "indexed"), eq(sourceDocuments.ingestionStatus, "lexical")), or(eq(knowledgeChunks.status, "indexed"), eq(knowledgeChunks.status, "lexical")));
@@ -22,8 +24,17 @@ export async function retrieveKnowledge(query: string, limit = 5) {
   const candidates = new Map<string, Candidate>();
   for (const row of [...lexicalRows, ...semanticRows]) candidates.set(row.vectorId, { ...row, vectorScore: vectorScores.get(row.vectorId) ?? 0, lexicalScore: knowledgeLexicalScore(query, `${row.title}\n${row.content}`) });
   const ranked = [...candidates.values()].filter((item) => item.vectorScore > 0 || item.lexicalScore > 0).sort((a, b) => (b.vectorScore * 4 + b.lexicalScore) - (a.vectorScore * 4 + a.lexicalScore)).slice(0, limit);
+  const retrievalMode = vectorScores.size ? (ranked.some((item) => item.lexicalScore > 0) ? "hybrid" : "vector") : "lexical";
+  try {
+    await db.insert(knowledgeRetrievalLogs).values({
+      id: crypto.randomUUID(), learnerId: learnerId ?? null, query: query.slice(0, 2000), retrievalMode,
+      resultCount: ranked.length, durationMs: Date.now() - startedAt, vectorError,
+      matchesJson: JSON.stringify(ranked.map((item) => ({ vectorId: item.vectorId, title: item.title, vectorScore: Number(item.vectorScore.toFixed(4)), lexicalScore: item.lexicalScore }))),
+    });
+  } catch { /* Observability must never block the learner response. */ }
   return {
     context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""}\n${item.content}`).join("\n\n"),
     sources: ranked.map((item) => ({ title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel })),
+    retrievalMode,
   };
 }

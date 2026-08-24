@@ -36,6 +36,13 @@
       "when": 1787327158433,
       "tag": "0004_aberrant_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787568762392,
+      "tag": "0005_demonic_lilith",
+      "breakpoints": true
     }
   ]
 }

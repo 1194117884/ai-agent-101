@@ -1,6 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { knowledgeChunks, sourceDocuments } from "../db/schema";
+import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
 import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIMENSIONS } from "./knowledge-vector";
 export type { KnowledgeDocumentInput } from "./knowledge";
@@ -23,6 +23,10 @@ export async function getKnowledgeStats() {
     capacityPercent: Math.min(100, Number(((chunkCount / FREE_VECTOR_CAPACITY) * 100).toFixed(1))),
     provider: "cloudflare",
   };
+}
+
+export async function listKnowledgeRetrievalLogs(limit = 30) {
+  return getDb().select({ id: knowledgeRetrievalLogs.id, query: knowledgeRetrievalLogs.query, retrievalMode: knowledgeRetrievalLogs.retrievalMode, resultCount: knowledgeRetrievalLogs.resultCount, matchesJson: knowledgeRetrievalLogs.matchesJson, durationMs: knowledgeRetrievalLogs.durationMs, vectorError: knowledgeRetrievalLogs.vectorError, createdAt: knowledgeRetrievalLogs.createdAt }).from(knowledgeRetrievalLogs).orderBy(desc(knowledgeRetrievalLogs.createdAt)).limit(Math.min(100, Math.max(1, limit)));
 }
 
 export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
