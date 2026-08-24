@@ -3,7 +3,7 @@ export const DEFAULT_CHUNK_CHARS = 1_200;
 export const DEFAULT_CHUNK_OVERLAP = 160;
 
 export type KnowledgeChunkInput = { ordinal: number; content: string; tokenEstimate: number };
-export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note"; versionLabel?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
+export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note" | "upload"; sourceFileName?: string; sourceMimeType?: string; submittedBy?: string; versionLabel?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
 
 export function normalizeKnowledgeText(value: string) {
   return value.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -39,7 +39,7 @@ export function validateKnowledgeDocument(input: KnowledgeDocumentInput) {
   const content = normalizeKnowledgeText(input.content ?? "");
   if (content.length < 20) throw new Error("资料正文至少需要 20 个字符。");
   if (content.length > MAX_DOCUMENT_CHARS) throw new Error(`单份资料不能超过 ${MAX_DOCUMENT_CHARS} 个字符。`);
-  if (!(["manual", "web", "note"] as const).includes(input.sourceType)) throw new Error("资料类型无效。");
+  if (!(["manual", "web", "note", "upload"] as const).includes(input.sourceType)) throw new Error("资料类型无效。");
   if (!(["primary", "trusted", "reference"] as const).includes(input.trustLevel)) throw new Error("可信级别无效。");
   if (!(["draft", "approved", "archived"] as const).includes(input.status)) throw new Error("审核状态无效。");
   if (input.url?.trim()) {

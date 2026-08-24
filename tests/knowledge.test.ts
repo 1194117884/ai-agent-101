@@ -3,6 +3,7 @@ import test from "node:test";
 import { knowledgeLexicalScore, knowledgeSearchTerms, MAX_DOCUMENT_CHARS, normalizeKnowledgeText, splitKnowledgeText, validateKnowledgeDocument } from "../lib/knowledge.ts";
 import { assertImportContent, fetchPublicKnowledgePage, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
 import { evaluateRetrievedKnowledge, parseExpectedTerms } from "../lib/knowledge-eval-core.ts";
+import { splitConvertedDocument, validateUploadMetadata } from "../lib/document-conversion-core.ts";
 
 test("normalizes and splits knowledge with stable overlap", () => {
   const text = `第一段。\r\n\r\n\r\n${"Agent 工具契约需要明确输入输出。".repeat(120)}`;
@@ -61,4 +62,13 @@ test("evaluates expected RAG document and terms", () => {
   const failed = evaluateRetrievedKnowledge("doc-2", ["schema", "恢复"], "schema 参数", [{ documentId: "doc-1" }]);
   assert.equal(failed.documentPassed, false);
   assert.deepEqual(failed.missingTerms, ["恢复"]);
+});
+
+test("validates and splits converted online uploads", () => {
+  assert.equal(validateUploadMetadata("guide.PDF", 2_000_000), "pdf");
+  assert.throws(() => validateUploadMetadata("slides.pptx", 2_000), /暂不支持/);
+  assert.throws(() => validateUploadMetadata("large.pdf", 21 * 1024 * 1024), /20 MB/);
+  const parts = splitConvertedDocument("Agent schema 与工具契约。".repeat(80), 300);
+  assert.ok(parts.length > 2);
+  assert.ok(parts.every((part) => part.length <= 300));
 });

@@ -7,7 +7,7 @@ import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIME
 export type { KnowledgeDocumentInput } from "./knowledge";
 
 export async function listKnowledgeDocuments() {
-  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
+  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
 }
 
 export async function getKnowledgeStats() {
@@ -50,16 +50,18 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
   const content = validateKnowledgeDocument(input);
   const db = getDb();
   const id = input.id ?? crypto.randomUUID();
+  let existingMetadata: { sourceFileName: string | null; sourceMimeType: string | null; submittedBy: string | null } | undefined;
   if (input.id) {
-    const [existing] = await db.select({ id: sourceDocuments.id }).from(sourceDocuments).where(eq(sourceDocuments.id, input.id)).limit(1);
+    const [existing] = await db.select({ id: sourceDocuments.id, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy }).from(sourceDocuments).where(eq(sourceDocuments.id, input.id)).limit(1);
     if (!existing) throw new Error("资料不存在，请刷新后重试。");
+    existingMetadata = existing;
   }
   const contentHash = await sha256(content);
   if (!input.id) {
     const [duplicate] = await db.select({ id: sourceDocuments.id }).from(sourceDocuments).where(eq(sourceDocuments.contentHash, contentHash)).limit(1);
     if (duplicate) return { id: duplicate.id, duplicate: true };
   }
-  const values = { title: input.title.trim(), url: input.url?.trim() || `manual://${id}`, sourceType: input.sourceType, versionLabel: input.versionLabel?.trim() || null, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: new Date().toISOString() };
+  const values = { title: input.title.trim(), url: input.url?.trim() || `${input.sourceType === "upload" ? "upload" : "manual"}://${id}`, sourceType: input.sourceType, sourceFileName: input.sourceFileName?.slice(0, 240) || existingMetadata?.sourceFileName || null, sourceMimeType: input.sourceMimeType?.slice(0, 160) || existingMetadata?.sourceMimeType || null, submittedBy: input.submittedBy?.slice(0, 200) || existingMetadata?.submittedBy || null, versionLabel: input.versionLabel?.trim() || null, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: new Date().toISOString() };
   if (input.id) await db.update(sourceDocuments).set(values).where(eq(sourceDocuments.id, id));
   else await db.insert(sourceDocuments).values({ id, reviewedAt: input.status === "approved" ? new Date().toISOString() : null, ...values });
   return { id, duplicate: false };
