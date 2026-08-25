@@ -1,4 +1,4 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
@@ -7,7 +7,7 @@ import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIME
 export type { KnowledgeDocumentInput } from "./knowledge";
 
 export async function listKnowledgeDocuments() {
-  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
+  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, versionLabel: sourceDocuments.versionLabel, reviewedAt: sourceDocuments.reviewedAt, archivedAt: sourceDocuments.archivedAt, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
 }
 
 export async function getKnowledgeStats() {
@@ -30,12 +30,16 @@ export async function listKnowledgeRetrievalLogs(limit = 30) {
   return getDb().select({ id: knowledgeRetrievalLogs.id, query: knowledgeRetrievalLogs.query, retrievalMode: knowledgeRetrievalLogs.retrievalMode, resultCount: knowledgeRetrievalLogs.resultCount, matchesJson: knowledgeRetrievalLogs.matchesJson, durationMs: knowledgeRetrievalLogs.durationMs, vectorError: knowledgeRetrievalLogs.vectorError, createdAt: knowledgeRetrievalLogs.createdAt }).from(knowledgeRetrievalLogs).orderBy(desc(knowledgeRetrievalLogs.createdAt)).limit(Math.min(100, Math.max(1, limit)));
 }
 
-export async function bulkSetKnowledgeStatus(ids: string[], status: "approved" | "archived") {
+export async function bulkSetKnowledgeStatus(ids: string[], status: "draft" | "approved" | "archived") {
   if (!ids.length) return 0;
   const now = new Date().toISOString();
   const db = getDb();
+  if (status === "draft") {
+    const result = await db.update(sourceDocuments).set({ status, reviewedAt: null, archivedAt: null, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: now }).where(and(inArray(sourceDocuments.id, ids), eq(sourceDocuments.status, "archived")));
+    return result.meta.changes ?? 0;
+  }
   if (status === "approved") {
-    const result = await db.update(sourceDocuments).set({ status, reviewedAt: now, updatedAt: now }).where(inArray(sourceDocuments.id, ids));
+    const result = await db.update(sourceDocuments).set({ status, reviewedAt: now, archivedAt: null, updatedAt: now }).where(and(inArray(sourceDocuments.id, ids), eq(sourceDocuments.status, "draft")));
     return result.meta.changes ?? 0;
   }
   let changed = 0;
@@ -52,7 +56,7 @@ export async function archiveKnowledgeDocument(id: string) {
   }
   const now = new Date().toISOString();
   await db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
-  const result = await db.update(sourceDocuments).set({ status: "archived", ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: now }).where(eq(sourceDocuments.id, id));
+  const result = await db.update(sourceDocuments).set({ status: "archived", archivedAt: now, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: now }).where(eq(sourceDocuments.id, id));
   return result.meta.changes ?? 0;
 }
 
