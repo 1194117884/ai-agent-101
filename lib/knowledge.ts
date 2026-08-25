@@ -3,7 +3,7 @@ export const DEFAULT_CHUNK_CHARS = 1_200;
 export const DEFAULT_CHUNK_OVERLAP = 160;
 
 export type KnowledgeChunkInput = { ordinal: number; content: string; tokenEstimate: number };
-export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note" | "upload"; sourceFileName?: string; sourceMimeType?: string; submittedBy?: string; versionLabel?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
+export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note" | "upload"; sourceFileName?: string; sourceMimeType?: string; submittedBy?: string; submissionId?: string; versionLabel?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
 
 export function normalizeKnowledgeText(value: string) {
   return value.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
