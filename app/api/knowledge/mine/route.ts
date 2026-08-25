@@ -30,7 +30,7 @@ export async function GET() {
     ]);
     const bySubmission = new Map<string, typeof documents>();
     for (const document of documents) if (document.submissionId) bySubmission.set(document.submissionId, [...(bySubmission.get(document.submissionId) ?? []), document]);
-    const current = submissions.map((submission) => { const parts = bySubmission.get(submission.id) ?? []; const summary = summarizeParts(parts); const overallStage = submission.status === "failed" ? "failed" : submission.status === "queued" ? "queued" : submission.status === "processing" ? "processing" : parts.length === 0 && submission.duplicateCount > 0 ? "duplicate" : summary.overallStage; return { ...submission, overallStage, stageCounts: summary.stageCounts, parts }; });
+    const current = submissions.map((submission) => { const parts = bySubmission.get(submission.id) ?? []; const summary = summarizeParts(parts); const overallStage = submission.status === "withdrawn" ? "withdrawn" : submission.status === "failed" ? "failed" : submission.status === "queued" ? "queued" : submission.status === "processing" ? "processing" : parts.length === 0 && submission.duplicateCount > 0 ? "duplicate" : summary.overallStage; return { ...submission, overallStage, stageCounts: summary.stageCounts, parts }; });
     const legacyGroups = new Map<string, typeof documents>();
     for (const document of documents) if (!document.submissionId) { const key = document.sourceFileName || document.id; legacyGroups.set(key, [...(legacyGroups.get(key) ?? []), document]); }
     const legacy = [...legacyGroups.entries()].map(([fileName, parts]) => { const summary = summarizeParts(parts); const createdAt = parts.map((part) => part.createdAt).sort()[0]; return { id: `legacy-${parts[0].id}`, submittedBy: user.userId, fileName, mimeType: parts[0].sourceMimeType ?? "application/octet-stream", fileSize: 0, status: "completed", conversion: "legacy", characterCount: 0, partCount: parts.length, duplicateCount: 0, error: null, createdAt, updatedAt: createdAt, ...summary, parts }; });
@@ -54,4 +54,22 @@ export async function POST(request: Request) {
     catch (error) { await db.update(knowledgeSubmissions).set({ status: "failed", error: error instanceof Error ? error.message.slice(0, 500) : "任务排队失败", updatedAt: new Date().toISOString() }).where(eq(knowledgeSubmissions.id, submission.id)); throw error; }
     return Response.json({ ok: true, queued: true }, { status: 202 });
   } catch (error) { if (error instanceof SyntaxError) return apiError("请求格式无效。", 400, "INVALID_INPUT"); return databaseError(error); }
+}
+
+export async function DELETE(request: Request) {
+  const user = await getCloudflareUser();
+  if (!user) return apiError("请先登录后撤回资料。", 401, "AUTH_REQUIRED");
+  const submissionId = new URL(request.url).searchParams.get("submissionId");
+  if (!submissionId || !/^[0-9a-f-]{36}$/i.test(submissionId)) return apiError("提交 ID 无效。", 400, "INVALID_INPUT");
+  try {
+    const db = getDb();
+    const [submission] = await db.select().from(knowledgeSubmissions).where(and(eq(knowledgeSubmissions.id, submissionId), eq(knowledgeSubmissions.submittedBy, user.userId))).limit(1);
+    if (!submission || !["completed", "failed"].includes(submission.status)) return apiError("只有转换完成或最终失败的资料可以撤回。", 400, "INVALID_INPUT");
+    const documents = await db.select({ status: sourceDocuments.status }).from(sourceDocuments).where(eq(sourceDocuments.submissionId, submission.id));
+    if (documents.some((document) => document.status !== "draft")) return apiError("资料已经审批或归档，请联系管理员处理。", 409, "INVALID_INPUT");
+    if (submission.objectKey) await env.KNOWLEDGE_UPLOADS.delete(submission.objectKey);
+    await db.delete(sourceDocuments).where(and(eq(sourceDocuments.submissionId, submission.id), eq(sourceDocuments.status, "draft")));
+    await db.update(knowledgeSubmissions).set({ status: "withdrawn", objectKey: null, error: null, partCount: 0, duplicateCount: 0, updatedAt: new Date().toISOString() }).where(and(eq(knowledgeSubmissions.id, submission.id), eq(knowledgeSubmissions.submittedBy, user.userId)));
+    return Response.json({ ok: true, withdrawn: true });
+  } catch (error) { return databaseError(error); }
 }

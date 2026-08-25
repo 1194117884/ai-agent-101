@@ -9,7 +9,7 @@ export async function processKnowledgeSubmission(submissionId: string) {
   const db = getDb();
   const [submission] = await db.select().from(knowledgeSubmissions).where(eq(knowledgeSubmissions.id, submissionId)).limit(1);
   if (!submission) throw new Error("上传任务不存在。");
-  if (submission.status === "completed") return { duplicateDelivery: true };
+  if (["completed", "withdrawn"].includes(submission.status)) return { duplicateDelivery: true };
   if (!submission.objectKey) throw new Error("上传任务缺少 R2 文件。");
   const startedAt = new Date().toISOString();
   await db.update(knowledgeSubmissions).set({ status: "processing", attempt: submission.attempt + 1, error: null, updatedAt: startedAt }).where(eq(knowledgeSubmissions.id, submissionId));
