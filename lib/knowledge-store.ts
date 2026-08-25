@@ -33,7 +33,26 @@ export async function listKnowledgeRetrievalLogs(limit = 30) {
 export async function bulkSetKnowledgeStatus(ids: string[], status: "approved" | "archived") {
   if (!ids.length) return 0;
   const now = new Date().toISOString();
-  const result = await getDb().update(sourceDocuments).set(status === "approved" ? { status, reviewedAt: now, updatedAt: now } : { status, updatedAt: now }).where(inArray(sourceDocuments.id, ids));
+  const db = getDb();
+  if (status === "approved") {
+    const result = await db.update(sourceDocuments).set({ status, reviewedAt: now, updatedAt: now }).where(inArray(sourceDocuments.id, ids));
+    return result.meta.changes ?? 0;
+  }
+  let changed = 0;
+  for (const id of ids) changed += await archiveKnowledgeDocument(id);
+  return changed;
+}
+
+export async function archiveKnowledgeDocument(id: string) {
+  const db = getDb();
+  const vectors = await db.select({ vectorId: knowledgeChunks.vectorId }).from(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
+  if (vectors.length) {
+    try { await getKnowledgeVectorProvider().delete(vectors.map((item) => item.vectorId)); }
+    catch { /* Archived documents are excluded by D1 even if remote cleanup is delayed. */ }
+  }
+  const now = new Date().toISOString();
+  await db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
+  const result = await db.update(sourceDocuments).set({ status: "archived", ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: now }).where(eq(sourceDocuments.id, id));
   return result.meta.changes ?? 0;
 }
 
@@ -123,11 +142,13 @@ export async function indexKnowledgeDocument(id: string) {
       mode = "lexical";
       ingestionError = `向量服务暂不可用，已启用免费关键词召回：${error instanceof Error ? error.message.slice(0, 160) : "未知错误"}`;
     }
-    await db.batch([
-      db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id)),
-      db.insert(knowledgeChunks).values(rows),
-      db.update(sourceDocuments).set({ ingestionStatus: mode, chunkCount: rows.length, lastIndexedAt: timestamp, ingestionError, reviewedAt: document.reviewedAt ?? timestamp, updatedAt: timestamp }).where(eq(sourceDocuments.id, id)),
-    ]);
+    // Keep every INSERT below D1's bound-variable limit for long documents.
+    await db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceDocumentId, id));
+    const insertBatchSize = 8;
+    for (let offset = 0; offset < rows.length; offset += insertBatchSize) {
+      await db.insert(knowledgeChunks).values(rows.slice(offset, offset + insertBatchSize));
+    }
+    await db.update(sourceDocuments).set({ ingestionStatus: mode, chunkCount: rows.length, lastIndexedAt: timestamp, ingestionError, reviewedAt: document.reviewedAt ?? timestamp, updatedAt: timestamp }).where(eq(sourceDocuments.id, id));
     return { chunkCount: rows.length, mode, provider: providerName, warning: ingestionError };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 240) : "未知索引错误";
