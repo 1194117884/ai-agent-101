@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../../db";
 import { knowledgeJobs, knowledgeSubmissions } from "../../../../../db/schema";
 import { apiError } from "../../../../../lib/api-response";
@@ -13,7 +13,10 @@ export async function POST(request: Request) {
   try {
     body = await request.json() as { type?: string; submissionId?: string; jobId?: string };
     if (body.type === "convert" && body.submissionId && /^[0-9a-f-]{36}$/i.test(body.submissionId)) return Response.json({ ok: true, result: await processKnowledgeSubmission(body.submissionId) });
-    if (body.type === "index" && body.jobId && /^[0-9a-f-]{36}$/i.test(body.jobId)) return Response.json({ ok: true, result: await runKnowledgeIndexJob(body.jobId) });
+    if (body.type === "index" && body.jobId && /^[0-9a-f-]{36}$/i.test(body.jobId)) {
+      if (Number(request.headers.get("x-queue-attempt") || "1") > 1) await getDb().update(knowledgeJobs).set({ status: "queued", updatedAt: new Date().toISOString() }).where(and(eq(knowledgeJobs.id, body.jobId), eq(knowledgeJobs.status, "running")));
+      return Response.json({ ok: true, result: await runKnowledgeIndexJob(body.jobId) });
+    }
     return apiError("队列消息无效。", 400, "INVALID_INPUT");
   } catch (error) {
     const attempt = Number(request.headers.get("x-queue-attempt") || "1");
