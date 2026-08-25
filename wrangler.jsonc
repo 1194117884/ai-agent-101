@@ -13,6 +13,7 @@
     "producers": [{ "binding": "KNOWLEDGE_QUEUE", "queue": "agent-engineering-coach-knowledge" }],
     "consumers": [{ "queue": "agent-engineering-coach-knowledge", "max_batch_size": 1, "max_batch_timeout": 2, "max_retries": 3, "dead_letter_queue": "agent-engineering-coach-knowledge-dlq" }]
   },
+  "triggers": { "crons": ["17 3 * * *"] },
   "d1_databases": [{ "binding": "DB", "database_name": "agent-engineering-coach", "database_id": "fea74aa5-dc8e-49ef-8be5-a84393b1f394", "migrations_dir": "drizzle" }],
   "observability": { "enabled": true },
   "vars": {

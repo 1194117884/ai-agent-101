@@ -4,6 +4,7 @@ import { getAdminUser } from "../../../../admin-auth";
 import { getDb } from "../../../../../db";
 import { knowledgeSubmissions } from "../../../../../db/schema";
 import { apiError, databaseError } from "../../../../../lib/api-response";
+import { discardKnowledgeSubmissionUpload } from "../../../../../lib/knowledge-submission";
 
 export async function POST(request: Request) {
   if (!await getAdminUser()) return apiError("无权重试上传任务。", 403, "FORBIDDEN");
@@ -24,6 +25,17 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, queued: true }, { status: 202 });
   } catch (error) {
     if (error instanceof SyntaxError) return apiError("请求格式无效。", 400, "INVALID_INPUT");
+    return databaseError(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!await getAdminUser()) return apiError("无权清理上传文件。", 403, "FORBIDDEN");
+  const submissionId = new URL(request.url).searchParams.get("submissionId");
+  if (!submissionId || !/^[0-9a-f-]{36}$/i.test(submissionId)) return apiError("提交 ID 无效。", 400, "INVALID_INPUT");
+  try { return Response.json({ ok: true, ...await discardKnowledgeSubmissionUpload(submissionId) }); }
+  catch (error) {
+    if (error instanceof Error && /不存在|不能清理/.test(error.message)) return apiError(error.message, 400, "INVALID_INPUT");
     return databaseError(error);
   }
 }

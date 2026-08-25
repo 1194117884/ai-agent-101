@@ -28,6 +28,12 @@ export default {
       }
     }
   },
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(app.fetch(new Request("https://internal.invalid/api/internal/knowledge/cleanup", {
+      method: "POST",
+      headers: { "x-internal-queue-secret": env.AI_KEY_ENCRYPTION_SECRET || "" },
+    }), env, ctx));
+  },
 };
 `;
 
