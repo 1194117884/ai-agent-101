@@ -18,7 +18,7 @@ export default {
       try {
         const response = await app.fetch(new Request("https://internal.invalid/api/internal/knowledge/queue", {
           method: "POST",
-          headers: { "content-type": "application/json", "x-internal-queue-secret": env.AI_KEY_ENCRYPTION_SECRET || "" },
+          headers: { "content-type": "application/json", "x-internal-queue-secret": env.AI_KEY_ENCRYPTION_SECRET || "", "x-queue-attempt": String(message.attempts || 1) },
           body: JSON.stringify(message.body),
         }), env, ctx);
         if (response.ok) message.ack();

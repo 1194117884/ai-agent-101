@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeJobs, knowledgeRetrievalLogs, knowledgeSubmissions, sourceDocuments } from "../db/schema";
@@ -51,6 +52,21 @@ export async function createKnowledgeIndexJob(documentId: string, requestedBy?: 
   return { id, duplicate: false };
 }
 
+async function sendKnowledgeIndexJob(job: { id: string; duplicate: boolean }) {
+  if (job.duplicate) return job;
+  try { await env.KNOWLEDGE_QUEUE.send({ type: "index", jobId: job.id }); }
+  catch (error) {
+    const failedAt = new Date().toISOString(); const message = error instanceof Error ? error.message.slice(0, 500) : "索引任务排队失败";
+    await getDb().update(knowledgeJobs).set({ status: "failed", finishedAt: failedAt, error: message, updatedAt: failedAt }).where(eq(knowledgeJobs.id, job.id));
+    throw error;
+  }
+  return job;
+}
+
+export async function enqueueKnowledgeIndexJob(documentId: string, requestedBy?: string) {
+  return sendKnowledgeIndexJob(await createKnowledgeIndexJob(documentId, requestedBy));
+}
+
 export async function runKnowledgeIndexJob(jobId: string) {
   const db = getDb(); const startedAt = new Date().toISOString();
   const [job] = await db.select().from(knowledgeJobs).where(eq(knowledgeJobs.id, jobId)).limit(1);
@@ -72,6 +88,10 @@ export async function retryKnowledgeIndexJob(jobId: string, requestedBy?: string
   const [job] = await db.select().from(knowledgeJobs).where(eq(knowledgeJobs.id, jobId)).limit(1);
   if (!job || job.status !== "failed") throw new Error("只有失败任务可以重试。");
   return createKnowledgeIndexJob(job.sourceDocumentId, requestedBy);
+}
+
+export async function enqueueKnowledgeIndexRetry(jobId: string, requestedBy?: string) {
+  return sendKnowledgeIndexJob(await retryKnowledgeIndexJob(jobId, requestedBy));
 }
 
 export async function bulkSetKnowledgeStatus(ids: string[], status: "draft" | "approved" | "archived") {

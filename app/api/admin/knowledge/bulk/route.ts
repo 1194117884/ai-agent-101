@@ -1,7 +1,6 @@
-import { after } from "next/server";
 import { getAdminUser } from "../../../../admin-auth";
 import { apiError, databaseError } from "../../../../../lib/api-response";
-import { bulkSetKnowledgeStatus, createKnowledgeIndexJob, runKnowledgeIndexJob } from "../../../../../lib/knowledge-store";
+import { bulkSetKnowledgeStatus, enqueueKnowledgeIndexJob } from "../../../../../lib/knowledge-store";
 
 type BulkRequest = { action?: "approve" | "archive" | "restore" | "index"; ids?: string[] };
 
@@ -17,7 +16,7 @@ export async function POST(request: Request) {
       if (ids.length > 10) return apiError("为保护免费额度，每批最多建立 10 份索引。", 400, "INVALID_INPUT");
       const results: { id: string; ok: boolean; jobId?: string; duplicate?: boolean; error?: string }[] = [];
       for (const id of ids) {
-        try { const job = await createKnowledgeIndexJob(id, user.userId); results.push({ id, ok: true, jobId: job.id, duplicate: job.duplicate }); if (!job.duplicate) after(() => runKnowledgeIndexJob(job.id)); }
+        try { const job = await enqueueKnowledgeIndexJob(id, user.userId); results.push({ id, ok: true, jobId: job.id, duplicate: job.duplicate }); }
         catch (error) { results.push({ id, ok: false, error: error instanceof Error ? error.message : "创建任务失败" }); }
       }
       const queued = results.filter((result) => result.ok).length;
