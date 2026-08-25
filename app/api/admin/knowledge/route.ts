@@ -1,12 +1,12 @@
 import { getAdminUser } from "../../../admin-auth";
 import { apiError, databaseError } from "../../../../lib/api-response";
-import { deleteKnowledgeDocument, getKnowledgeStats, listKnowledgeDocuments, listKnowledgeJobs, listKnowledgeRetrievalLogs, saveKnowledgeDocument, type KnowledgeDocumentInput } from "../../../../lib/knowledge-store";
+import { deleteKnowledgeDocument, getKnowledgeStats, listKnowledgeDocuments, listKnowledgeJobs, listKnowledgeRetrievalLogs, listKnowledgeSubmissions, saveKnowledgeDocument, type KnowledgeDocumentInput } from "../../../../lib/knowledge-store";
 
 export async function GET() {
   if (!await getAdminUser()) return apiError("无权管理知识库。", 403, "FORBIDDEN");
   try {
-    const [documents, stats, retrievalLogs, jobs] = await Promise.all([listKnowledgeDocuments(), getKnowledgeStats(), listKnowledgeRetrievalLogs(), listKnowledgeJobs()]);
-    return Response.json({ documents, stats, retrievalLogs, jobs });
+    const [documents, stats, retrievalLogs, jobs, submissions] = await Promise.all([listKnowledgeDocuments(), getKnowledgeStats(), listKnowledgeRetrievalLogs(), listKnowledgeJobs(), listKnowledgeSubmissions()]);
+    return Response.json({ documents, stats, retrievalLogs, jobs, submissions });
   }
   catch (error) { return databaseError(error); }
 }

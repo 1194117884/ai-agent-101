@@ -49,8 +49,9 @@ export async function POST(request: Request) {
     if (!submission || submission.status !== "failed" || !submission.objectKey) return apiError("只有保留了原始文件的失败任务可以重试。", 400, "INVALID_INPUT");
     const object = await env.KNOWLEDGE_UPLOADS.head(submission.objectKey);
     if (!object) return apiError("原始文件已清理，请重新上传。", 410, "INVALID_INPUT");
-    await env.KNOWLEDGE_QUEUE.send({ type: "convert", submissionId: submission.id });
     const now = new Date().toISOString(); await db.update(knowledgeSubmissions).set({ status: "queued", error: null, updatedAt: now }).where(eq(knowledgeSubmissions.id, submission.id));
+    try { await env.KNOWLEDGE_QUEUE.send({ type: "convert", submissionId: submission.id }); }
+    catch (error) { await db.update(knowledgeSubmissions).set({ status: "failed", error: error instanceof Error ? error.message.slice(0, 500) : "任务排队失败", updatedAt: new Date().toISOString() }).where(eq(knowledgeSubmissions.id, submission.id)); throw error; }
     return Response.json({ ok: true, queued: true }, { status: 202 });
   } catch (error) { if (error instanceof SyntaxError) return apiError("请求格式无效。", 400, "INVALID_INPUT"); return databaseError(error); }
 }

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { knowledgeChunks, knowledgeJobs, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
+import { knowledgeChunks, knowledgeJobs, knowledgeRetrievalLogs, knowledgeSubmissions, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
 import { fetchPublicKnowledgePage } from "./knowledge-import";
 import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIMENSIONS } from "./knowledge-vector";
@@ -32,6 +32,10 @@ export async function listKnowledgeRetrievalLogs(limit = 30) {
 
 export async function listKnowledgeJobs(limit = 100) {
   return getDb().select().from(knowledgeJobs).orderBy(desc(knowledgeJobs.createdAt)).limit(Math.min(200, Math.max(1, limit)));
+}
+
+export async function listKnowledgeSubmissions(limit = 100) {
+  return getDb().select().from(knowledgeSubmissions).orderBy(desc(knowledgeSubmissions.createdAt)).limit(Math.min(200, Math.max(1, limit)));
 }
 
 export async function createKnowledgeIndexJob(documentId: string, requestedBy?: string) {
