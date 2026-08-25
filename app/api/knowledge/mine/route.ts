@@ -1,4 +1,5 @@
-import { desc, eq } from "drizzle-orm";
+import { env } from "cloudflare:workers";
+import { and, desc, eq } from "drizzle-orm";
 import { getCloudflareUser } from "../../../auth";
 import { getDb } from "../../../../db";
 import { knowledgeSubmissions, sourceDocuments } from "../../../../db/schema";
@@ -29,10 +30,27 @@ export async function GET() {
     ]);
     const bySubmission = new Map<string, typeof documents>();
     for (const document of documents) if (document.submissionId) bySubmission.set(document.submissionId, [...(bySubmission.get(document.submissionId) ?? []), document]);
-    const current = submissions.map((submission) => { const parts = bySubmission.get(submission.id) ?? []; const summary = summarizeParts(parts); const overallStage = submission.status === "failed" ? "failed" : parts.length === 0 && submission.duplicateCount > 0 ? "duplicate" : summary.overallStage; return { ...submission, overallStage, stageCounts: summary.stageCounts, parts }; });
+    const current = submissions.map((submission) => { const parts = bySubmission.get(submission.id) ?? []; const summary = summarizeParts(parts); const overallStage = submission.status === "failed" ? "failed" : submission.status === "queued" ? "queued" : submission.status === "processing" ? "processing" : parts.length === 0 && submission.duplicateCount > 0 ? "duplicate" : summary.overallStage; return { ...submission, overallStage, stageCounts: summary.stageCounts, parts }; });
     const legacyGroups = new Map<string, typeof documents>();
     for (const document of documents) if (!document.submissionId) { const key = document.sourceFileName || document.id; legacyGroups.set(key, [...(legacyGroups.get(key) ?? []), document]); }
     const legacy = [...legacyGroups.entries()].map(([fileName, parts]) => { const summary = summarizeParts(parts); const createdAt = parts.map((part) => part.createdAt).sort()[0]; return { id: `legacy-${parts[0].id}`, submittedBy: user.userId, fileName, mimeType: parts[0].sourceMimeType ?? "application/octet-stream", fileSize: 0, status: "completed", conversion: "legacy", characterCount: 0, partCount: parts.length, duplicateCount: 0, error: null, createdAt, updatedAt: createdAt, ...summary, parts }; });
     return Response.json({ submissions: [...current, ...legacy].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100) });
   } catch (error) { return databaseError(error); }
+}
+
+export async function POST(request: Request) {
+  const user = await getCloudflareUser();
+  if (!user) return apiError("请先登录后重试上传。", 401, "AUTH_REQUIRED");
+  try {
+    const body = await request.json() as { submissionId?: string };
+    if (!body.submissionId || !/^[0-9a-f-]{36}$/i.test(body.submissionId)) return apiError("提交 ID 无效。", 400, "INVALID_INPUT");
+    const db = getDb();
+    const [submission] = await db.select().from(knowledgeSubmissions).where(and(eq(knowledgeSubmissions.id, body.submissionId), eq(knowledgeSubmissions.submittedBy, user.userId))).limit(1);
+    if (!submission || submission.status !== "failed" || !submission.objectKey) return apiError("只有保留了原始文件的失败任务可以重试。", 400, "INVALID_INPUT");
+    const object = await env.KNOWLEDGE_UPLOADS.head(submission.objectKey);
+    if (!object) return apiError("原始文件已清理，请重新上传。", 410, "INVALID_INPUT");
+    await env.KNOWLEDGE_QUEUE.send({ type: "convert", submissionId: submission.id });
+    const now = new Date().toISOString(); await db.update(knowledgeSubmissions).set({ status: "queued", error: null, updatedAt: now }).where(eq(knowledgeSubmissions.id, submission.id));
+    return Response.json({ ok: true, queued: true }, { status: 202 });
+  } catch (error) { if (error instanceof SyntaxError) return apiError("请求格式无效。", 400, "INVALID_INPUT"); return databaseError(error); }
 }

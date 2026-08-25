@@ -8,6 +8,11 @@
   "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
   "ai": { "binding": "AI" },
   "vectorize": [{ "binding": "VECTORIZE", "index_name": "agent-knowledge" }],
+  "r2_buckets": [{ "binding": "KNOWLEDGE_UPLOADS", "bucket_name": "agent-engineering-coach-uploads" }],
+  "queues": {
+    "producers": [{ "binding": "KNOWLEDGE_QUEUE", "queue": "agent-engineering-coach-knowledge" }],
+    "consumers": [{ "queue": "agent-engineering-coach-knowledge", "max_batch_size": 1, "max_batch_timeout": 2, "max_retries": 3, "dead_letter_queue": "agent-engineering-coach-knowledge-dlq" }]
+  },
   "d1_databases": [{ "binding": "DB", "database_name": "agent-engineering-coach", "database_id": "fea74aa5-dc8e-49ef-8be5-a84393b1f394", "migrations_dir": "drizzle" }],
   "observability": { "enabled": true },
   "vars": {
