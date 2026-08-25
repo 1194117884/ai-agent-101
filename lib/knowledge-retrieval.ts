@@ -5,6 +5,7 @@ import { knowledgeLexicalScore } from "./knowledge";
 import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
 type Candidate = { vectorId: string; documentId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
+export type KnowledgeRetrievalMatch = { rank: number; vectorId: string; documentId: string; title: string; excerpt: string; vectorScore: number; lexicalScore: number; combinedScore: number; relativeRelevance: number };
 
 export async function retrieveKnowledge(query: string, limit = 5, learnerId?: string) {
   const startedAt = Date.now();
@@ -24,17 +25,23 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
   const candidates = new Map<string, Candidate>();
   for (const row of [...lexicalRows, ...semanticRows]) candidates.set(row.vectorId, { ...row, vectorScore: vectorScores.get(row.vectorId) ?? 0, lexicalScore: knowledgeLexicalScore(query, `${row.title}\n${row.content}`) });
   const ranked = [...candidates.values()].filter((item) => item.vectorScore > 0 || item.lexicalScore > 0).sort((a, b) => (b.vectorScore * 4 + b.lexicalScore) - (a.vectorScore * 4 + a.lexicalScore)).slice(0, limit);
+  const topScore = ranked.length ? ranked[0].vectorScore * 4 + ranked[0].lexicalScore : 0;
+  const matches: KnowledgeRetrievalMatch[] = ranked.map((item, index) => {
+    const combinedScore = item.vectorScore * 4 + item.lexicalScore;
+    return { rank: index + 1, vectorId: item.vectorId, documentId: item.documentId, title: item.title, excerpt: item.content.slice(0, 600), vectorScore: Number(item.vectorScore.toFixed(4)), lexicalScore: Number(item.lexicalScore.toFixed(2)), combinedScore: Number(combinedScore.toFixed(4)), relativeRelevance: topScore > 0 ? Math.round((combinedScore / topScore) * 100) : 0 };
+  });
   const retrievalMode = vectorScores.size ? (ranked.some((item) => item.lexicalScore > 0) ? "hybrid" : "vector") : "lexical";
   try {
     await db.insert(knowledgeRetrievalLogs).values({
       id: crypto.randomUUID(), learnerId: learnerId ?? null, query: query.slice(0, 2000), retrievalMode,
       resultCount: ranked.length, durationMs: Date.now() - startedAt, vectorError,
-      matchesJson: JSON.stringify(ranked.map((item) => ({ vectorId: item.vectorId, title: item.title, vectorScore: Number(item.vectorScore.toFixed(4)), lexicalScore: item.lexicalScore }))),
+      matchesJson: JSON.stringify(matches),
     });
   } catch { /* Observability must never block the learner response. */ }
   return {
     context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""}\n${item.content}`).join("\n\n"),
     sources: ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel })),
+    matches,
     retrievalMode,
   };
 }

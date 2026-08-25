@@ -62,6 +62,7 @@ test("evaluates expected RAG document and terms", () => {
   const failed = evaluateRetrievedKnowledge("doc-2", ["schema", "恢复"], "schema 参数", [{ documentId: "doc-1" }]);
   assert.equal(failed.documentPassed, false);
   assert.deepEqual(failed.missingTerms, ["恢复"]);
+  assert.equal(failed.passed, false);
 });
 
 test("validates and splits converted online uploads", () => {

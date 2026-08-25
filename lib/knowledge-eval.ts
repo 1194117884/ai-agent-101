@@ -32,8 +32,9 @@ export async function runKnowledgeEvalCases(ids?: string[]) {
       const retrieval = await retrieveKnowledge(item.question, 5);
       const evaluation = evaluateRetrievedKnowledge(item.expectedDocumentId, parseExpectedTerms(item.expectedTermsJson), retrieval.context, retrieval.sources);
       const passed = evaluation.passed;
-      const matches = retrieval.sources.map((source) => ({ documentId: source.documentId, title: source.title }));
-      await db.update(knowledgeEvalCases).set({ lastRunAt: now, lastMode: retrieval.retrievalMode, lastPassed: passed, lastMatchesJson: JSON.stringify(matches), lastError: null, updatedAt: now }).where(eq(knowledgeEvalCases.id, item.id));
+      const expectedRank = item.expectedDocumentId ? retrieval.matches.find((match) => match.documentId === item.expectedDocumentId)?.rank ?? null : null;
+      const report = { matches: retrieval.matches, evaluation: { documentPassed: evaluation.documentPassed, expectedRank, missingTerms: evaluation.missingTerms, reason: passed ? `期望资料与关键词均命中${expectedRank ? `，资料排名第 ${expectedRank}` : ""}` : [evaluation.documentPassed ? null : "期望资料未进入 Top 5", evaluation.missingTerms.length ? `缺少关键词：${evaluation.missingTerms.join("、")}` : null].filter(Boolean).join("；") } };
+      await db.update(knowledgeEvalCases).set({ lastRunAt: now, lastMode: retrieval.retrievalMode, lastPassed: passed, lastMatchesJson: JSON.stringify(report), lastError: null, updatedAt: now }).where(eq(knowledgeEvalCases.id, item.id));
       results.push({ id: item.id, passed, mode: retrieval.retrievalMode });
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 240) : "评测运行失败";
