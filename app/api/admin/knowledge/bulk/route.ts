@@ -1,11 +1,13 @@
+import { after } from "next/server";
 import { getAdminUser } from "../../../../admin-auth";
 import { apiError, databaseError } from "../../../../../lib/api-response";
-import { bulkIndexKnowledgeDocuments, bulkSetKnowledgeStatus } from "../../../../../lib/knowledge-store";
+import { bulkSetKnowledgeStatus, createKnowledgeIndexJob, runKnowledgeIndexJob } from "../../../../../lib/knowledge-store";
 
 type BulkRequest = { action?: "approve" | "archive" | "restore" | "index"; ids?: string[] };
 
 export async function POST(request: Request) {
-  if (!await getAdminUser()) return apiError("无权批量管理知识资料。", 403, "FORBIDDEN");
+  const user = await getAdminUser();
+  if (!user) return apiError("无权批量管理知识资料。", 403, "FORBIDDEN");
   try {
     const body = await request.json() as BulkRequest;
     const ids = [...new Set((body.ids ?? []).filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)))];
@@ -13,9 +15,13 @@ export async function POST(request: Request) {
     if (!ids.length || ids.length > 50) return apiError("请选择 1–50 份有效资料。", 400, "INVALID_INPUT");
     if (body.action === "index") {
       if (ids.length > 10) return apiError("为保护免费额度，每批最多建立 10 份索引。", 400, "INVALID_INPUT");
-      const results = await bulkIndexKnowledgeDocuments(ids);
-      const completed = results.filter((result) => result.ok).length;
-      return Response.json({ ok: completed > 0, completed, failed: results.length - completed, results }, { status: completed > 0 ? 200 : 422 });
+      const results: { id: string; ok: boolean; jobId?: string; duplicate?: boolean; error?: string }[] = [];
+      for (const id of ids) {
+        try { const job = await createKnowledgeIndexJob(id, user.userId); results.push({ id, ok: true, jobId: job.id, duplicate: job.duplicate }); if (!job.duplicate) after(() => runKnowledgeIndexJob(job.id)); }
+        catch (error) { results.push({ id, ok: false, error: error instanceof Error ? error.message : "创建任务失败" }); }
+      }
+      const queued = results.filter((result) => result.ok).length;
+      return Response.json({ ok: queued > 0, queued, failed: results.length - queued, results }, { status: queued > 0 ? 202 : 422 });
     }
     const changed = await bulkSetKnowledgeStatus(ids, body.action === "approve" ? "approved" : body.action === "restore" ? "draft" : "archived");
     return Response.json({ ok: true, changed });

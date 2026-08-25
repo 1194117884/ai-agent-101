@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
+import { knowledgeChunks, knowledgeJobs, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { sha256, splitKnowledgeText, validateKnowledgeDocument, type KnowledgeDocumentInput } from "./knowledge";
 import { fetchPublicKnowledgePage } from "./knowledge-import";
 import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIMENSIONS } from "./knowledge-vector";
@@ -28,6 +28,46 @@ export async function getKnowledgeStats() {
 
 export async function listKnowledgeRetrievalLogs(limit = 30) {
   return getDb().select({ id: knowledgeRetrievalLogs.id, query: knowledgeRetrievalLogs.query, retrievalMode: knowledgeRetrievalLogs.retrievalMode, resultCount: knowledgeRetrievalLogs.resultCount, matchesJson: knowledgeRetrievalLogs.matchesJson, durationMs: knowledgeRetrievalLogs.durationMs, vectorError: knowledgeRetrievalLogs.vectorError, createdAt: knowledgeRetrievalLogs.createdAt }).from(knowledgeRetrievalLogs).orderBy(desc(knowledgeRetrievalLogs.createdAt)).limit(Math.min(100, Math.max(1, limit)));
+}
+
+export async function listKnowledgeJobs(limit = 100) {
+  return getDb().select().from(knowledgeJobs).orderBy(desc(knowledgeJobs.createdAt)).limit(Math.min(200, Math.max(1, limit)));
+}
+
+export async function createKnowledgeIndexJob(documentId: string, requestedBy?: string) {
+  const db = getDb();
+  const [document] = await db.select({ id: sourceDocuments.id, status: sourceDocuments.status, content: sourceDocuments.content }).from(sourceDocuments).where(eq(sourceDocuments.id, documentId)).limit(1);
+  if (!document) throw new Error("资料不存在。");
+  if (document.status !== "approved") throw new Error("只有已审核资料可以建立索引。");
+  if (!document.content) throw new Error("资料正文为空。");
+  const [active] = await db.select({ id: knowledgeJobs.id }).from(knowledgeJobs).where(and(eq(knowledgeJobs.sourceDocumentId, documentId), inArray(knowledgeJobs.status, ["queued", "running"]))).limit(1);
+  if (active) return { id: active.id, duplicate: true };
+  const id = crypto.randomUUID(); const now = new Date().toISOString();
+  await db.insert(knowledgeJobs).values({ id, sourceDocumentId: documentId, type: "index", status: "queued", requestedBy: requestedBy ?? null, updatedAt: now });
+  return { id, duplicate: false };
+}
+
+export async function runKnowledgeIndexJob(jobId: string) {
+  const db = getDb(); const startedAt = new Date().toISOString();
+  const [job] = await db.select().from(knowledgeJobs).where(eq(knowledgeJobs.id, jobId)).limit(1);
+  if (!job || !["queued", "failed"].includes(job.status)) return null;
+  await db.update(knowledgeJobs).set({ status: "running", attempt: job.attempt + 1, startedAt, finishedAt: null, error: null, updatedAt: startedAt }).where(eq(knowledgeJobs.id, jobId));
+  try {
+    const result = await indexKnowledgeDocument(job.sourceDocumentId); const finishedAt = new Date().toISOString();
+    await db.update(knowledgeJobs).set({ status: "completed", finishedAt, error: null, updatedAt: finishedAt }).where(eq(knowledgeJobs.id, jobId));
+    return result;
+  } catch (error) {
+    const finishedAt = new Date().toISOString(); const message = error instanceof Error ? error.message.slice(0, 500) : "未知任务错误";
+    await db.update(knowledgeJobs).set({ status: "failed", finishedAt, error: message, updatedAt: finishedAt }).where(eq(knowledgeJobs.id, jobId));
+    throw error;
+  }
+}
+
+export async function retryKnowledgeIndexJob(jobId: string, requestedBy?: string) {
+  const db = getDb();
+  const [job] = await db.select().from(knowledgeJobs).where(eq(knowledgeJobs.id, jobId)).limit(1);
+  if (!job || job.status !== "failed") throw new Error("只有失败任务可以重试。");
+  return createKnowledgeIndexJob(job.sourceDocumentId, requestedBy);
 }
 
 export async function bulkSetKnowledgeStatus(ids: string[], status: "draft" | "approved" | "archived") {
