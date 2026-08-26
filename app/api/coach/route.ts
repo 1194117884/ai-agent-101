@@ -33,12 +33,13 @@ export async function POST(request: Request) {
     try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
     const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);
+    const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
+    const retrieval = { mode: knowledge.retrievalMode, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "learner", content: message }),
-      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.answer}\n追问：${reply.followUp}`, source: reply.source }),
+      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.answer}\n追问：${reply.followUp}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, focus: reply.focus }) }),
     ]);
-    const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
-    return Response.json({ ...reply, retrieval: { mode: knowledge.retrievalMode, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) } });
+    return Response.json({ ...reply, retrieval });
   } catch (error) {
     return databaseError(error);
   }

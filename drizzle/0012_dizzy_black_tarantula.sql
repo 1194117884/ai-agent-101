@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `metadata_json` text;
