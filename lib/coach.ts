@@ -86,7 +86,7 @@ async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt
 
 export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"]; conflicts?: KnowledgeConflict[] }): Promise<CoachReply> {
   const course = curriculumContext(message);
-  const retrieved = knowledge?.context ? `\n\n已审核知识库片段：\n${knowledge.context}` : "";
+  const retrieved = knowledge?.context ? `\n\n已发布知识库片段：\n${knowledge.context}` : "";
   const conflictInstruction = knowledge?.conflicts?.length ? `\n检测到同一资料的多个版本：${knowledge.conflicts.map((item) => `${item.title}（${item.versions.join(" / ")}）`).join("；")}。回答必须明确指出版本差异，优先采用更高可信等级或更新版本；无法判断时并列说明，不得混合成单一断言。` : "";
   const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}${retrieved}${conflictInstruction}\n\n学生：${message}\n回答必须基于上述课程和知识库片段；不得声称使用未提供的资料。source 填写最主要的课程或资料标题。`;
   const providers = configuredProviders(env);

@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, queued: true, jobId: job.id }, { status: 202 });
   } catch (error) {
     if (error instanceof SyntaxError) return apiError("请求格式无效。", 400, "INVALID_INPUT");
-    if (error instanceof Error && /只有失败任务|不存在|只有已审核|为空/.test(error.message)) return apiError(error.message, 400, "INVALID_INPUT");
+    if (error instanceof Error && /只有失败任务|不存在|只有已发布|为空/.test(error.message)) return apiError(error.message, 400, "INVALID_INPUT");
     return databaseError(error);
   }
 }

@@ -173,7 +173,7 @@ export function KnowledgeManager() {
     finally { setWorking(""); }
   }
 
-  return <main className="admin-shell knowledge-admin"><header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>知识库管理</h1><p>录入、审核、切片并向量化 Agent Engineering 资料。</p></div><Link href="/admin/ai" className="secondary-button">AI 渠道</Link></header>
+  return <main className="admin-shell knowledge-admin"><header className="admin-header"><div><Link href="/" className="back-link">← 返回学习页</Link><h1>知识库管理</h1><p>录入资料后自动解析、切片、向量化并发布。</p></div><Link href="/admin/ai" className="secondary-button">AI 渠道</Link></header>
     <nav className="knowledge-tabs" aria-label="知识库工作区">{([ ["overview", "数据概览", documents.length], ["queue", "处理队列", queueCount], ["documents", "全部资料", documents.length], ["evals", "召回评测", evalCases.length], ["logs", "召回记录", retrievalLogs.length] ] as [KnowledgeTab, string, number][]).map(([key, label, count]) => <button key={key} className={activeTab === key ? "active" : ""} aria-current={activeTab === key ? "page" : undefined} onClick={() => { setActiveTab(key); setSelected(new Set()); }}><span>{label}</span><b>{count}</b></button>)}</nav>
     {notice && <div className="toast knowledge-toast" role="status">{notice}</div>}
     {activeTab === "overview" && <div className="knowledge-workspace">
