@@ -11,7 +11,10 @@ test("build contains the authenticated learning shell and Google login gate", as
   ]);
   assert.match(page, /getCloudflareUser/);
   assert.match(page, /return <Login/);
-  assert.match(page, /提交学习证据/);
+  assert.match(page, /先完成眼前这一小步/);
+  assert.match(page, /看今日任务/);
+  assert.match(page, /提交你的答案/);
+  assert.match(page, /获得下一步/);
   assert.match(login, /继续你的 Agent 训练/);
   assert.match(login, /accounts\.google\.com\/gsi\/client/);
   assert.match(auth, /agent_session/);
