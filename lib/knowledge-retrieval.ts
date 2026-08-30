@@ -2,11 +2,11 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { knowledgeLexicalScore } from "./knowledge";
+import { detectKnowledgeConflicts, type KnowledgeSource } from "./knowledge-conflicts";
 import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
 type Candidate = { vectorId: string; documentId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
 export type KnowledgeRetrievalMatch = { rank: number; vectorId: string; documentId: string; title: string; excerpt: string; vectorScore: number; lexicalScore: number; combinedScore: number; relativeRelevance: number };
-
 export async function retrieveKnowledge(query: string, limit = 5, learnerId?: string) {
   const startedAt = Date.now();
   const db = getDb();
@@ -38,9 +38,11 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
       matchesJson: JSON.stringify(matches),
     });
   } catch { /* Observability must never block the learner response. */ }
+  const sources: KnowledgeSource[] = ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel }));
   return {
     context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""}\n${item.content}`).join("\n\n"),
-    sources: ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel })),
+    sources,
+    conflicts: detectKnowledgeConflicts(sources),
     matches,
     retrievalMode,
   };

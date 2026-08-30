@@ -29,12 +29,12 @@ export async function POST(request: Request) {
       reportAttempt = configuration.reportAttempt;
     }
     catch { /* Environment variables remain the fallback until D1 settings are available. */ }
-    let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], retrievalMode: "unavailable" as string };
+    let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], conflicts: [] as { key: string; title: string; versions: string[]; documentIds: string[] }[], retrievalMode: "unavailable" as string };
     try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
     const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);
     const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
-    const retrieval = { mode: knowledge.retrievalMode, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
+    const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "learner", content: message }),
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.answer}\n追问：${reply.followUp}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, focus: reply.focus }) }),

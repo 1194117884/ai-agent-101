@@ -4,6 +4,7 @@ import { knowledgeLexicalScore, knowledgeSearchTerms, MAX_DOCUMENT_CHARS, normal
 import { assertImportContent, fetchPublicKnowledgePage, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
 import { evaluateRetrievedKnowledge, parseExpectedTerms } from "../lib/knowledge-eval-core.ts";
 import { splitConvertedDocument, validateUploadMetadata } from "../lib/document-conversion-core.ts";
+import { detectKnowledgeConflicts } from "../lib/knowledge-conflicts.ts";
 
 test("normalizes and splits knowledge with stable overlap", () => {
   const text = `第一段。\r\n\r\n\r\n${"Agent 工具契约需要明确输入输出。".repeat(120)}`;
@@ -72,4 +73,16 @@ test("validates and splits converted online uploads", () => {
   const parts = splitConvertedDocument("Agent schema 与工具契约。".repeat(80), 300);
   assert.ok(parts.length > 2);
   assert.ok(parts.every((part) => part.length <= 300));
+});
+
+test("detects multiple retrieved versions without flagging repeated chunks", () => {
+  const base = { title: "Agent Guide", url: "https://example.com/guide", trustLevel: "primary" };
+  const conflicts = detectKnowledgeConflicts([
+    { ...base, documentId: "doc-1", versionLabel: "2025" },
+    { ...base, documentId: "doc-1", versionLabel: "2025" },
+    { ...base, url: "https://example.com/guide#tools", documentId: "doc-2", versionLabel: "2026" },
+  ]);
+  assert.equal(conflicts.length, 1);
+  assert.deepEqual(conflicts[0].versions, ["2025", "2026"]);
+  assert.deepEqual(conflicts[0].documentIds, ["doc-1", "doc-2"]);
 });
