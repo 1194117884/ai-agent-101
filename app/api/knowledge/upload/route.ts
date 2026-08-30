@@ -1,14 +1,14 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { getCloudflareUser } from "../../../auth";
+import { getAdminUser } from "../../../admin-auth";
 import { getDb } from "../../../../db";
 import { knowledgeSubmissions } from "../../../../db/schema";
 import { apiError, databaseError } from "../../../../lib/api-response";
 import { validateUploadFile } from "../../../../lib/document-conversion";
 
 export async function POST(request: Request) {
-  const user = await getCloudflareUser();
-  if (!user) return apiError("请先登录后上传资料。", 401, "AUTH_REQUIRED");
+  const user = await getAdminUser();
+  if (!user) return apiError("只有管理员可以上传知识资料。", 403, "FORBIDDEN");
   let objectKey: string | null = null; let submissionId: string | null = null; let recordCreated = false;
   try {
     const form = await request.formData(); const file = form.get("file");

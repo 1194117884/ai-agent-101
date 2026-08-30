@@ -8,15 +8,17 @@ import { ActivityHistory } from "./ActivityHistory";
 import { getCloudflareUser } from "./auth";
 import { Login } from "./Login";
 import { LogoutButton } from "./LogoutButton";
+import { getAdminUser } from "./admin-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   if (!await getCloudflareUser()) return <Login />;
+  const admin = await getAdminUser();
   return <main className="coach-shell">
     <header className="coach-nav">
       <div className="brand"><span className="brand-mark">A</span><div><strong>阿建私教</strong><small>Agent Engineering Coach</small></div></div>
-      <div className="nav-actions"><Link href="/knowledge/upload" className="admin-link">上传资料</Link><Link href="/admin/knowledge" className="admin-link">知识库</Link><Link href="/admin/ai" className="admin-link">AI 渠道 <span>→</span></Link><LogoutButton /></div>
+      <div className="nav-actions">{admin && <><Link href="/knowledge/upload" className="admin-link">上传资料</Link><Link href="/admin/knowledge" className="admin-link">知识库</Link><Link href="/admin/ai" className="admin-link">AI 渠道 <span>→</span></Link></>}<LogoutButton /></div>
     </header>
 
     <section className="hero-grid">

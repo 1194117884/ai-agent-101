@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
-import { getCloudflareUser } from "../../../auth";
+import { getAdminUser } from "../../../admin-auth";
 import { getDb } from "../../../../db";
 import { knowledgeSubmissions, sourceDocuments } from "../../../../db/schema";
 import { apiError, databaseError } from "../../../../lib/api-response";
@@ -20,8 +20,8 @@ function summarizeParts(parts: { status: string; ingestionStatus: string }[]) {
 }
 
 export async function GET() {
-  const user = await getCloudflareUser();
-  if (!user) return apiError("请先登录后查看上传记录。", 401, "AUTH_REQUIRED");
+  const user = await getAdminUser();
+  if (!user) return apiError("只有管理员可以查看上传记录。", 403, "FORBIDDEN");
   try {
     const db = getDb();
     const [submissions, documents] = await Promise.all([
@@ -39,8 +39,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getCloudflareUser();
-  if (!user) return apiError("请先登录后重试上传。", 401, "AUTH_REQUIRED");
+  const user = await getAdminUser();
+  if (!user) return apiError("只有管理员可以重试上传。", 403, "FORBIDDEN");
   try {
     const body = await request.json() as { submissionId?: string };
     if (!body.submissionId || !/^[0-9a-f-]{36}$/i.test(body.submissionId)) return apiError("提交 ID 无效。", 400, "INVALID_INPUT");
@@ -57,8 +57,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getCloudflareUser();
-  if (!user) return apiError("请先登录后撤回资料。", 401, "AUTH_REQUIRED");
+  const user = await getAdminUser();
+  if (!user) return apiError("只有管理员可以撤回资料。", 403, "FORBIDDEN");
   const submissionId = new URL(request.url).searchParams.get("submissionId");
   if (!submissionId || !/^[0-9a-f-]{36}$/i.test(submissionId)) return apiError("提交 ID 无效。", 400, "INVALID_INPUT");
   try {

@@ -2,7 +2,7 @@ import { getAdminUser } from "../../../../admin-auth";
 import { apiError, databaseError } from "../../../../../lib/api-response";
 import { bulkSetKnowledgeStatus, enqueueKnowledgeIndexJob } from "../../../../../lib/knowledge-store";
 
-type BulkRequest = { action?: "approve" | "archive" | "restore" | "index"; ids?: string[] };
+type BulkRequest = { action?: "archive" | "restore" | "index"; ids?: string[] };
 
 export async function POST(request: Request) {
   const user = await getAdminUser();
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as BulkRequest;
     const ids = [...new Set((body.ids ?? []).filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)))];
-    if (!body.action || !["approve", "archive", "restore", "index"].includes(body.action)) return apiError("批量操作无效。", 400, "INVALID_INPUT");
+    if (!body.action || !["archive", "restore", "index"].includes(body.action)) return apiError("批量操作无效。", 400, "INVALID_INPUT");
     if (!ids.length || ids.length > 50) return apiError("请选择 1–50 份有效资料。", 400, "INVALID_INPUT");
     if (body.action === "index") {
       if (ids.length > 10) return apiError("为保护免费额度，每批最多建立 10 份索引。", 400, "INVALID_INPUT");
@@ -22,7 +22,11 @@ export async function POST(request: Request) {
       const queued = results.filter((result) => result.ok).length;
       return Response.json({ ok: queued > 0, queued, failed: results.length - queued, results }, { status: queued > 0 ? 202 : 422 });
     }
-    const changed = await bulkSetKnowledgeStatus(ids, body.action === "approve" ? "approved" : body.action === "restore" ? "draft" : "archived");
+    const changed = await bulkSetKnowledgeStatus(ids, body.action === "restore" ? "approved" : "archived");
+    if (body.action === "restore") {
+      const results = await Promise.all(ids.map(async (id) => { try { return { id, ok: true, ...await enqueueKnowledgeIndexJob(id, user.userId) }; } catch (error) { return { id, ok: false, error: error instanceof Error ? error.message : "恢复索引失败" }; } }));
+      return Response.json({ ok: true, changed, queued: results.filter((item) => item.ok).length, results });
+    }
     return Response.json({ ok: true, changed });
   } catch (error) {
     if (error instanceof SyntaxError) return apiError("批量请求格式无效。", 400, "INVALID_INPUT");

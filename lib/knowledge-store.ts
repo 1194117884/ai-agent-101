@@ -43,7 +43,7 @@ export async function createKnowledgeIndexJob(documentId: string, requestedBy?: 
   const db = getDb();
   const [document] = await db.select({ id: sourceDocuments.id, status: sourceDocuments.status, content: sourceDocuments.content }).from(sourceDocuments).where(eq(sourceDocuments.id, documentId)).limit(1);
   if (!document) throw new Error("资料不存在。");
-  if (document.status !== "approved") throw new Error("只有已审核资料可以建立索引。");
+  if (document.status !== "approved") throw new Error("只有已发布资料可以建立索引。");
   if (!document.content) throw new Error("资料正文为空。");
   const [active] = await db.select({ id: knowledgeJobs.id }).from(knowledgeJobs).where(and(eq(knowledgeJobs.sourceDocumentId, documentId), inArray(knowledgeJobs.status, ["queued", "running"]))).limit(1);
   if (active) return { id: active.id, duplicate: true };
@@ -103,7 +103,7 @@ export async function bulkSetKnowledgeStatus(ids: string[], status: "draft" | "a
     return result.meta.changes ?? 0;
   }
   if (status === "approved") {
-    const result = await db.update(sourceDocuments).set({ status, reviewedAt: now, archivedAt: null, updatedAt: now }).where(and(inArray(sourceDocuments.id, ids), eq(sourceDocuments.status, "draft")));
+    const result = await db.update(sourceDocuments).set({ status, reviewedAt: now, archivedAt: null, updatedAt: now }).where(and(inArray(sourceDocuments.id, ids), inArray(sourceDocuments.status, ["draft", "archived"])));
     return result.meta.changes ?? 0;
   }
   let changed = 0;
@@ -145,13 +145,13 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
   }
   const contentHash = await sha256(content);
   if (!input.id) {
-    const [duplicate] = await db.select({ id: sourceDocuments.id }).from(sourceDocuments).where(eq(sourceDocuments.contentHash, contentHash)).limit(1);
-    if (duplicate) return { id: duplicate.id, duplicate: true };
+    const [duplicate] = await db.select({ id: sourceDocuments.id, ingestionStatus: sourceDocuments.ingestionStatus }).from(sourceDocuments).where(eq(sourceDocuments.contentHash, contentHash)).limit(1);
+    if (duplicate) return { id: duplicate.id, duplicate: true, needsIndex: !["indexed", "lexical"].includes(duplicate.ingestionStatus) };
   }
   const values = { title: input.title.trim(), url: input.url?.trim() || `${input.sourceType === "upload" ? "upload" : "manual"}://${id}`, sourceType: input.sourceType, sourceFileName: input.sourceFileName?.slice(0, 240) || existingMetadata?.sourceFileName || null, sourceMimeType: input.sourceMimeType?.slice(0, 160) || existingMetadata?.sourceMimeType || null, submittedBy: input.submittedBy?.slice(0, 200) || existingMetadata?.submittedBy || null, submissionId: input.submissionId || existingMetadata?.submissionId || null, versionLabel: input.versionLabel?.trim() || null, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: new Date().toISOString() };
   if (input.id) await db.update(sourceDocuments).set(values).where(eq(sourceDocuments.id, id));
   else await db.insert(sourceDocuments).values({ id, reviewedAt: input.status === "approved" ? new Date().toISOString() : null, ...values });
-  return { id, duplicate: false };
+  return { id, duplicate: false, needsIndex: input.status === "approved" };
 }
 
 export async function refreshKnowledgeDocument(id: string) {
@@ -182,7 +182,7 @@ export async function indexKnowledgeDocument(id: string) {
   const db = getDb();
   const [document] = await db.select().from(sourceDocuments).where(eq(sourceDocuments.id, id)).limit(1);
   if (!document) throw new Error("资料不存在。");
-  if (document.status !== "approved") throw new Error("只有已审核资料可以建立索引。");
+  if (document.status !== "approved") throw new Error("只有已发布资料可以建立索引。");
   if (!document.content) throw new Error("资料正文为空。");
   await db.update(sourceDocuments).set({ ingestionStatus: "indexing", ingestionError: null, updatedAt: new Date().toISOString() }).where(eq(sourceDocuments.id, id));
   try {

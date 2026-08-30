@@ -41,7 +41,7 @@ export function validateKnowledgeDocument(input: KnowledgeDocumentInput) {
   if (content.length > MAX_DOCUMENT_CHARS) throw new Error(`单份资料不能超过 ${MAX_DOCUMENT_CHARS} 个字符。`);
   if (!(["manual", "web", "note", "upload"] as const).includes(input.sourceType)) throw new Error("资料类型无效。");
   if (!(["primary", "trusted", "reference"] as const).includes(input.trustLevel)) throw new Error("可信级别无效。");
-  if (!(["draft", "approved", "archived"] as const).includes(input.status)) throw new Error("审核状态无效。");
+  if (!(["draft", "approved", "archived"] as const).includes(input.status)) throw new Error("资料状态无效。");
   if (input.url?.trim()) {
     const url = new URL(input.url.trim());
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) throw new Error("资料 URL 必须是无账号信息的 HTTP(S) 地址。");

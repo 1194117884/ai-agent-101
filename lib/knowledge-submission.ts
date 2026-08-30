@@ -3,7 +3,7 @@ import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeSubmissions } from "../db/schema";
 import { convertUploadToMarkdown, splitConvertedDocument } from "./document-conversion";
-import { saveKnowledgeDocument } from "./knowledge-store";
+import { enqueueKnowledgeIndexJob, saveKnowledgeDocument } from "./knowledge-store";
 
 export async function processKnowledgeSubmission(submissionId: string) {
   const db = getDb();
@@ -22,8 +22,9 @@ export async function processKnowledgeSubmission(submissionId: string) {
     const saved = [];
     for (let index = 0; index < parts.length; index += 1) {
       const title = parts.length > 1 ? `${converted.title}（${index + 1}/${parts.length}）` : converted.title;
-      saved.push(await saveKnowledgeDocument({ title, sourceType: "upload", sourceFileName: submission.fileName, sourceMimeType: submission.mimeType, submittedBy: submission.submittedBy, submissionId, trustLevel: "reference", status: "draft", topicIds: [], summary: `用户 ${submission.submitterName || "学习者"} 上传；${converted.conversion} 转换。`, content: parts[index] }));
+      saved.push(await saveKnowledgeDocument({ title, sourceType: "upload", sourceFileName: submission.fileName, sourceMimeType: submission.mimeType, submittedBy: submission.submittedBy, submissionId, trustLevel: "reference", status: "approved", topicIds: [], summary: `管理员上传；${converted.conversion} 转换。`, content: parts[index] }));
     }
+    for (const document of saved) if (document.needsIndex) await enqueueKnowledgeIndexJob(document.id, submission.submittedBy);
     const characterCount = parts.reduce((sum, part) => sum + part.length, 0); const duplicateCount = saved.filter((item) => item.duplicate).length; const finishedAt = new Date().toISOString();
     await env.KNOWLEDGE_UPLOADS.delete(submission.objectKey);
     await db.update(knowledgeSubmissions).set({ status: "completed", objectKey: null, conversion: converted.conversion, characterCount, partCount: saved.length, duplicateCount, error: null, updatedAt: finishedAt }).where(eq(knowledgeSubmissions.id, submissionId));

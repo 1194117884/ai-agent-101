@@ -1,13 +1,14 @@
 import { getAdminUser } from "../../../../admin-auth";
 import { apiError, databaseError } from "../../../../../lib/api-response";
 import { assertImportContent, fetchPublicKnowledgePage, importedTitle, MAX_IMPORT_ITEMS } from "../../../../../lib/knowledge-import";
-import { saveKnowledgeDocument } from "../../../../../lib/knowledge-store";
+import { enqueueKnowledgeIndexJob, saveKnowledgeDocument } from "../../../../../lib/knowledge-store";
 
 type FileItem = { filename?: string; content?: string };
 type ImportRequest = { files?: FileItem[]; urls?: string[] };
 
 export async function POST(request: Request) {
-  if (!await getAdminUser()) return apiError("无权导入知识资料。", 403, "FORBIDDEN");
+  const user = await getAdminUser();
+  if (!user) return apiError("无权导入知识资料。", 403, "FORBIDDEN");
   try {
     const body = await request.json() as ImportRequest;
     const files = Array.isArray(body.files) ? body.files : [];
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
       try {
         const title = importedTitle(source);
         const content = assertImportContent(file.content ?? "");
-        const saved = await saveKnowledgeDocument({ title, sourceType: "manual", trustLevel: "trusted", status: "draft", topicIds: [], content });
+        const saved = await saveKnowledgeDocument({ title, sourceType: "manual", trustLevel: "trusted", status: "approved", topicIds: [], content });
+        if (saved.needsIndex) await enqueueKnowledgeIndexJob(saved.id, user.userId);
         results.push({ source, ok: true, id: saved.id, title, duplicate: saved.duplicate });
       } catch (error) { results.push({ source, ok: false, error: error instanceof Error ? error.message : "文件导入失败" }); }
     }
@@ -28,7 +30,8 @@ export async function POST(request: Request) {
       const source = value.slice(0, 500);
       try {
         const page = await fetchPublicKnowledgePage(source);
-        const saved = await saveKnowledgeDocument({ title: page.title, url: page.url, sourceType: "web", trustLevel: "reference", status: "draft", topicIds: [], content: page.content });
+        const saved = await saveKnowledgeDocument({ title: page.title, url: page.url, sourceType: "web", trustLevel: "reference", status: "approved", topicIds: [], content: page.content });
+        if (saved.needsIndex) await enqueueKnowledgeIndexJob(saved.id, user.userId);
         results.push({ source, ok: true, id: saved.id, title: page.title, duplicate: saved.duplicate });
       } catch (error) { results.push({ source, ok: false, error: error instanceof Error ? error.message : "网页导入失败" }); }
     }
