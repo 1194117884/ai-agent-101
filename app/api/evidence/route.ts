@@ -6,6 +6,7 @@ import { apiError, databaseError } from "../../../lib/api-response";
 import { getAssessmentDefinition, gradeAssessment } from "../../../lib/assessment";
 import { rubricAssessmentId } from "../../../lib/rubric";
 import { recommendNextTask } from "../../../lib/task-recommendation";
+import { nextReviewAt } from "../../../lib/weakness-analysis";
 import { getCompetency } from "../../../curriculum/catalog";
 
 export async function POST(request: Request) {
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
     const assessmentId = activeTask ? rubricAssessmentId(activeTask.rubricJson) ?? "design-tool-contract" : "design-tool-contract";
     const assessment = gradeAssessment(assessmentId, content);
     const [state] = await db.select({ id: competencyStates.id }).from(competencyStates).where(and(eq(competencyStates.learnerId, user.userId), eq(competencyStates.competencyId, assessment.competencyId))).limit(1);
-    const stateValues = { mastery: assessment.score, confidence: Math.min(80, assessment.score), rationale: assessment.feedback, lastAssessedAt: new Date().toISOString() };
+    const assessedAt = new Date();
+    const stateValues = { mastery: assessment.score, confidence: Math.min(80, assessment.score), rationale: assessment.feedback, lastAssessedAt: assessedAt.toISOString(), reviewDueAt: nextReviewAt(assessment.score, assessedAt) };
     const previousStates = await db.select({ competencyId: competencyStates.competencyId, mastery: competencyStates.mastery, confidence: competencyStates.confidence }).from(competencyStates).where(eq(competencyStates.learnerId, user.userId));
     const nextTask = recommendNextTask([...previousStates.filter((item) => item.competencyId !== assessment.competencyId), { competencyId: assessment.competencyId, mastery: stateValues.mastery, confidence: stateValues.confidence }]);
     const competency = getCompetency(assessment.competencyId);

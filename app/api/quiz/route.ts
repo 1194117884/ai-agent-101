@@ -5,6 +5,7 @@ import { assessments, competencies, competencyStates, learnerProfiles } from "..
 import { assessmentCatalog, getAssessmentDefinition, gradeAssessment } from "../../../lib/assessment";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { getCompetency } from "../../../curriculum/catalog";
+import { nextReviewAt } from "../../../lib/weakness-analysis";
 
 async function learner(user: CloudflareUser) {
   const db = getDb();
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
     const assessmentId = rubricId(item.rubricJson); if (!getAssessmentDefinition(assessmentId)) return apiError("评分规则版本无法识别。", 409, "CONFLICT");
     const answer = input.answer.trim();
     const result = gradeAssessment(assessmentId, answer);
-    const state = { mastery: result.score, confidence: Math.min(85, result.score), rationale: `${result.errorCategory ? `错误类型：${result.errorCategory}。` : ""}${result.feedback}`, lastAssessedAt: new Date().toISOString() };
+    const assessedAt = new Date();
+    const state = { mastery: result.score, confidence: Math.min(85, result.score), rationale: `${result.errorCategory ? `错误类型：${result.errorCategory}。` : ""}${result.feedback}`, lastAssessedAt: assessedAt.toISOString(), reviewDueAt: nextReviewAt(result.score, assessedAt) };
     const [existing] = await ctx.db.select({ id: competencyStates.id }).from(competencyStates).where(and(eq(competencyStates.learnerId, ctx.user.userId), eq(competencyStates.competencyId, result.competencyId))).limit(1);
     const stateWrite = existing
       ? ctx.db.update(competencyStates).set(state).where(eq(competencyStates.id, existing.id))
