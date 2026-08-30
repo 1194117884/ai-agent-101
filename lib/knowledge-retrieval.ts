@@ -2,11 +2,11 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { knowledgeChunks, knowledgeRetrievalLogs, sourceDocuments } from "../db/schema";
 import { knowledgeLexicalScore } from "./knowledge";
-import { detectKnowledgeConflicts, type KnowledgeSource } from "./knowledge-conflicts";
+import { detectKnowledgeConflicts, knowledgeRankingScore, type KnowledgeSource } from "./knowledge-conflicts";
 import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
 type Candidate = { vectorId: string; documentId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
-export type KnowledgeRetrievalMatch = { rank: number; vectorId: string; documentId: string; title: string; excerpt: string; vectorScore: number; lexicalScore: number; combinedScore: number; relativeRelevance: number };
+export type KnowledgeRetrievalMatch = { rank: number; vectorId: string; documentId: string; title: string; excerpt: string; vectorScore: number; lexicalScore: number; authorityBoost: number; combinedScore: number; relativeRelevance: number };
 export async function retrieveKnowledge(query: string, limit = 5, learnerId?: string) {
   const startedAt = Date.now();
   const db = getDb();
@@ -24,11 +24,12 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
   ]);
   const candidates = new Map<string, Candidate>();
   for (const row of [...lexicalRows, ...semanticRows]) candidates.set(row.vectorId, { ...row, vectorScore: vectorScores.get(row.vectorId) ?? 0, lexicalScore: knowledgeLexicalScore(query, `${row.title}\n${row.content}`) });
-  const ranked = [...candidates.values()].filter((item) => item.vectorScore > 0 || item.lexicalScore > 0).sort((a, b) => (b.vectorScore * 4 + b.lexicalScore) - (a.vectorScore * 4 + a.lexicalScore)).slice(0, limit);
-  const topScore = ranked.length ? ranked[0].vectorScore * 4 + ranked[0].lexicalScore : 0;
+  const ranked = [...candidates.values()].filter((item) => item.vectorScore > 0 || item.lexicalScore > 0).sort((a, b) => knowledgeRankingScore(b.vectorScore, b.lexicalScore, b.trustLevel) - knowledgeRankingScore(a.vectorScore, a.lexicalScore, a.trustLevel)).slice(0, limit);
+  const topScore = ranked.length ? knowledgeRankingScore(ranked[0].vectorScore, ranked[0].lexicalScore, ranked[0].trustLevel) : 0;
   const matches: KnowledgeRetrievalMatch[] = ranked.map((item, index) => {
-    const combinedScore = item.vectorScore * 4 + item.lexicalScore;
-    return { rank: index + 1, vectorId: item.vectorId, documentId: item.documentId, title: item.title, excerpt: item.content.slice(0, 600), vectorScore: Number(item.vectorScore.toFixed(4)), lexicalScore: Number(item.lexicalScore.toFixed(2)), combinedScore: Number(combinedScore.toFixed(4)), relativeRelevance: topScore > 0 ? Math.round((combinedScore / topScore) * 100) : 0 };
+    const relevanceScore = item.vectorScore * 4 + item.lexicalScore;
+    const combinedScore = knowledgeRankingScore(item.vectorScore, item.lexicalScore, item.trustLevel);
+    return { rank: index + 1, vectorId: item.vectorId, documentId: item.documentId, title: item.title, excerpt: item.content.slice(0, 600), vectorScore: Number(item.vectorScore.toFixed(4)), lexicalScore: Number(item.lexicalScore.toFixed(2)), authorityBoost: Number((combinedScore - relevanceScore).toFixed(2)), combinedScore: Number(combinedScore.toFixed(4)), relativeRelevance: topScore > 0 ? Math.round((combinedScore / topScore) * 100) : 0 };
   });
   const retrievalMode = vectorScores.size ? (ranked.some((item) => item.lexicalScore > 0) ? "hybrid" : "vector") : "lexical";
   try {

@@ -4,7 +4,7 @@ import { knowledgeLexicalScore, knowledgeSearchTerms, MAX_DOCUMENT_CHARS, normal
 import { assertImportContent, fetchPublicKnowledgePage, htmlToKnowledgeText, importedTitle, pageTitle, validateImportUrl } from "../lib/knowledge-import.ts";
 import { evaluateRetrievedKnowledge, parseExpectedTerms } from "../lib/knowledge-eval-core.ts";
 import { splitConvertedDocument, validateUploadMetadata } from "../lib/document-conversion-core.ts";
-import { detectKnowledgeConflicts } from "../lib/knowledge-conflicts.ts";
+import { detectKnowledgeConflicts, knowledgeRankingScore } from "../lib/knowledge-conflicts.ts";
 
 test("normalizes and splits knowledge with stable overlap", () => {
   const text = `第一段。\r\n\r\n\r\n${"Agent 工具契约需要明确输入输出。".repeat(120)}`;
@@ -85,4 +85,11 @@ test("detects multiple retrieved versions without flagging repeated chunks", () 
   assert.equal(conflicts.length, 1);
   assert.deepEqual(conflicts[0].versions, ["2025", "2026"]);
   assert.deepEqual(conflicts[0].documentIds, ["doc-1", "doc-2"]);
+});
+
+test("uses trust only as a bounded retrieval ranking signal", () => {
+  assert.equal(knowledgeRankingScore(0.8, 2, "reference"), 5.2);
+  assert.equal(knowledgeRankingScore(0.8, 2, "trusted"), 5.24);
+  assert.equal(knowledgeRankingScore(0.8, 2, "primary"), 5.28);
+  assert.ok(knowledgeRankingScore(0.9, 2, "reference") > knowledgeRankingScore(0.8, 2, "primary"));
 });

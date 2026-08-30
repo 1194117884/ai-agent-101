@@ -1,6 +1,12 @@
 export type KnowledgeSource = { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string };
 export type KnowledgeConflict = { key: string; title: string; versions: string[]; documentIds: string[] };
 
+const TRUST_BOOST: Record<string, number> = { primary: 0.08, trusted: 0.04, reference: 0 };
+
+export function knowledgeRankingScore(vectorScore: number, lexicalScore: number, trustLevel: string) {
+  return vectorScore * 4 + lexicalScore + (TRUST_BOOST[trustLevel] ?? 0);
+}
+
 function sourceIdentity(source: KnowledgeSource) {
   if (source.url && /^https?:\/\//i.test(source.url)) {
     try { const url = new URL(source.url); url.hash = ""; return `url:${url.toString().replace(/\/$/, "").toLowerCase()}`; }
