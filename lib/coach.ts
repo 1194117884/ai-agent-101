@@ -62,7 +62,8 @@ function requestFor(provider: Provider, key: string, prompt: string): RequestIni
   if (provider.name === "anthropic") {
     return { method: "POST", headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: provider.model, max_tokens: 700, system: SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }] }) };
   }
-  return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 700, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] }) };
+  const outputControl = provider.name === "deepseek" ? { thinking: { type: "disabled" }, response_format: { type: "json_object" } } : {};
+  return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 1000, ...outputControl, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] }) };
 }
 
 function timeoutSetting(value: string | undefined, fallback: number, maximum: number) {

@@ -28,10 +28,10 @@ test("rotates keys between requests", async () => {
 });
 
 test("fails over across keys and providers", async () => {
-  const calls: { url: string; auth: string }[] = [];
+  const calls: { url: string; auth: string; body: Record<string, unknown> }[] = [];
   const fetcher: typeof fetch = async (input, init) => {
     const url = String(input);
-    calls.push({ url, auth: new Headers(init?.headers).get("authorization") ?? new Headers(init?.headers).get("x-api-key") ?? "" });
+    calls.push({ url, auth: new Headers(init?.headers).get("authorization") ?? new Headers(init?.headers).get("x-api-key") ?? "", body: JSON.parse(String(init?.body)) as Record<string, unknown> });
     if (calls.length < 3) return new Response("unavailable", { status: 429 });
     return Response.json({ choices: [{ message: { content: reply } }] });
   };
@@ -44,6 +44,8 @@ test("fails over across keys and providers", async () => {
   assert.deepEqual(result.delivery, { mode: "model", provider: "deepseek" });
   assert.deepEqual(calls.map((call) => call.auth), ["a-1", "a-2", "Bearer d-1"]);
   assert.match(calls[2].url, /deepseek/);
+  assert.deepEqual(calls[2].body.thinking, { type: "disabled" });
+  assert.deepEqual(calls[2].body.response_format, { type: "json_object" });
 });
 
 test("reports a safe fallback when all configured model keys fail", async () => {
