@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       reportAttempt = configuration.reportAttempt;
     }
     catch { /* Environment variables remain the fallback until D1 settings are available. */ }
-    let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], conflicts: [] as { key: string; title: string; versions: string[]; documentIds: string[] }[], retrievalMode: "unavailable" as string };
+    let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], conflicts: [] as { key: string; title: string; versions: string[]; documentIds: string[]; preferredDocumentId: string | null; preferredVersion: string | null; preferenceReason: "authority" | "newer_version" | "uncertain" }[], retrievalMode: "unavailable" as string };
     try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
     const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);

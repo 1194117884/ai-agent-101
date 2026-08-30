@@ -85,6 +85,17 @@ test("detects multiple retrieved versions without flagging repeated chunks", () 
   assert.equal(conflicts.length, 1);
   assert.deepEqual(conflicts[0].versions, ["2025", "2026"]);
   assert.deepEqual(conflicts[0].documentIds, ["doc-1", "doc-2"]);
+  assert.equal(conflicts[0].preferredDocumentId, "doc-2");
+  assert.equal(conflicts[0].preferenceReason, "newer_version");
+});
+
+test("prefers authority over a newer reference version", () => {
+  const conflicts = detectKnowledgeConflicts([
+    { documentId: "official", title: "Guide", url: null, versionLabel: "2025", trustLevel: "primary" },
+    { documentId: "reference", title: "Guide", url: null, versionLabel: "2026", trustLevel: "reference" },
+  ]);
+  assert.equal(conflicts[0].preferredDocumentId, "official");
+  assert.equal(conflicts[0].preferenceReason, "authority");
 });
 
 test("uses trust only as a bounded retrieval ranking signal", () => {

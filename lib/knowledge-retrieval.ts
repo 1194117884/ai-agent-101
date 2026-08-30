@@ -41,7 +41,7 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
   } catch { /* Observability must never block the learner response. */ }
   const sources: KnowledgeSource[] = ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel }));
   return {
-    context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""}\n${item.content}`).join("\n\n"),
+    context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""} [可信等级: ${item.trustLevel}]\n${item.content}`).join("\n\n"),
     sources,
     conflicts: detectKnowledgeConflicts(sources),
     matches,
