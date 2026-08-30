@@ -65,6 +65,21 @@ function requestFor(provider: Provider, key: string, prompt: string): RequestIni
   return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 700, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] }) };
 }
 
+function timeoutSetting(value: string | undefined, fallback: number, maximum: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 10 ? Math.min(Math.round(parsed), maximum) : fallback;
+}
+
+async function fetchWithin(fetcher: typeof fetch, input: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { controller.abort(); reject(new Error("PROVIDER_TIMEOUT")); }, timeoutMs);
+  });
+  try { return await Promise.race([fetcher(input, { ...init, signal: controller.signal }), timeout]); }
+  finally { if (timer) clearTimeout(timer); }
+}
+
 function responseText(provider: Provider, data: unknown): string {
   if (!data || typeof data !== "object") return "";
   if (provider.name === "anthropic") return (data as { content?: { type?: string; text?: string }[] }).content?.find((item) => item.type === "text")?.text ?? "";
@@ -90,10 +105,14 @@ export async function generateCoachReply(message: string, priorScore: number | n
   const conflictInstruction = knowledge?.conflicts?.length ? `\n检测到同一资料的多个版本：${knowledge.conflicts.map((item) => `${item.title}（${item.versions.join(" / ")}；${item.preferredVersion ? `系统建议 ${item.preferredVersion}，依据：${item.preferenceReason === "authority" ? "可信等级" : "较新版本"}` : "系统无法可靠判断优先版本"}）`).join("；")}。回答必须明确指出版本差异；可以采用系统建议，但不得隐瞒冲突；无法判断时并列说明，不得混合成单一断言。` : "";
   const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}${retrieved}${conflictInstruction}\n\n学生：${message}\n回答必须基于上述课程和知识库片段；不得声称使用未提供的资料。source 填写最主要的课程或资料标题。`;
   const providers = configuredProviders(env);
-  for (const provider of providers) {
+  const attemptTimeoutMs = timeoutSetting(env.COACH_PROVIDER_TIMEOUT_MS, 10_000, 30_000);
+  const deadline = Date.now() + timeoutSetting(env.COACH_TOTAL_TIMEOUT_MS, 24_000, 45_000);
+  providerLoop: for (const provider of providers) {
     for (const key of rotateKeys(provider)) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs < 10) break providerLoop;
       try {
-        const response = await fetcher(provider.endpoint, requestFor(provider, key, prompt));
+        const response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt), Math.min(attemptTimeoutMs, remainingMs));
         if (!response.ok) {
           await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
           continue;
@@ -104,8 +123,8 @@ export async function generateCoachReply(message: string, priorScore: number | n
           return { ...reply, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };
         }
         await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
-      } catch {
-        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "NETWORK_ERROR" });
+      } catch (error) {
+        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: error instanceof Error && error.message === "PROVIDER_TIMEOUT" ? "TIMEOUT" : "NETWORK_ERROR" });
         // Try the next key, then the next configured provider.
       }
     }

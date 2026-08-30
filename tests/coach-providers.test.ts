@@ -75,3 +75,18 @@ test("reports per-key failures and the eventual success without exposing respons
     { provider: "openai", outcome: "success", error: undefined },
   ]);
 });
+
+test("times out a stalled key and fails over within the total reply budget", async () => {
+  const attempts: { outcome: string; error?: string }[] = [];
+  let call = 0;
+  const result = await generateCoachReply("问题", null, {
+    OPENAI_API_KEYS: "stalled,good", AI_PROVIDER_ORDER: "openai",
+    COACH_PROVIDER_TIMEOUT_MS: "15", COACH_TOTAL_TIMEOUT_MS: "100",
+  }, async (_input, init) => {
+    call += 1;
+    if (call === 1) return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+    return Response.json({ choices: [{ message: { content: reply } }] });
+  }, (attempt) => { attempts.push({ outcome: attempt.outcome, error: attempt.error }); });
+  assert.equal(result.delivery?.mode, "model");
+  assert.deepEqual(attempts, [{ outcome: "failure", error: "TIMEOUT" }, { outcome: "success", error: undefined }]);
+});
