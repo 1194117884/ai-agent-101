@@ -1,11 +1,12 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getCloudflareUser, type CloudflareUser } from "../../auth";
 import { getDb } from "../../../db";
-import { assessments, competencies, competencyStates, learnerProfiles } from "../../../db/schema";
-import { assessmentCatalog, getAssessmentDefinition, gradeAssessment } from "../../../lib/assessment";
+import { assessments, competencies, competencyStates, evidence, learnerProfiles, learningTasks } from "../../../db/schema";
+import { getAssessmentDefinition, gradeAssessment } from "../../../lib/assessment";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { getCompetency } from "../../../curriculum/catalog";
 import { nextReviewAt } from "../../../lib/weakness-analysis";
+import { recommendNextTask } from "../../../lib/task-recommendation";
 
 async function learner(user: CloudflareUser) {
   const db = getDb();
@@ -19,8 +20,8 @@ export async function GET() {
     const ctx = await learner(user);
     const [open] = await ctx.db.select().from(assessments).where(and(eq(assessments.learnerId, ctx.user.userId), eq(assessments.status, "open"))).orderBy(desc(assessments.createdAt)).limit(1);
     if (open) return Response.json({ ...open, assessmentId: rubricId(open.rubricJson) });
-    const [total] = await ctx.db.select({ value: count() }).from(assessments).where(eq(assessments.learnerId, ctx.user.userId));
-    const definition = assessmentCatalog[total.value % assessmentCatalog.length]; const competency = getCompetency(definition.competencyId);
+    const states = await ctx.db.select({ competencyId: competencyStates.competencyId, mastery: competencyStates.mastery, confidence: competencyStates.confidence }).from(competencyStates).where(eq(competencyStates.learnerId, ctx.user.userId));
+    const definition = recommendNextTask(states).assessment; const competency = getCompetency(definition.competencyId);
     const item = { id: crypto.randomUUID(), learnerId: ctx.user.userId, competencyId: definition.competencyId, question: definition.question, rubricJson: JSON.stringify({ assessmentId: definition.id, kind: definition.kind, criteria: definition.criteria }), status: "open" };
     await ctx.db.batch([
       ctx.db.insert(competencies).values({ id: definition.competencyId, name: competency?.name ?? definition.competencyId, description: definition.title, priority: competency?.prio ?? "P1", prerequisitesJson: JSON.stringify(competency?.prerequisites ?? []) }).onConflictDoNothing(),
@@ -46,15 +47,23 @@ export async function POST(request: Request) {
     const result = gradeAssessment(assessmentId, answer);
     const assessedAt = new Date();
     const state = { mastery: result.score, confidence: Math.min(85, result.score), rationale: `${result.errorCategory ? `错误类型：${result.errorCategory}。` : ""}${result.feedback}`, lastAssessedAt: assessedAt.toISOString(), reviewDueAt: nextReviewAt(result.score, assessedAt) };
+    const previousStates = await ctx.db.select({ competencyId: competencyStates.competencyId, mastery: competencyStates.mastery, confidence: competencyStates.confidence }).from(competencyStates).where(eq(competencyStates.learnerId, ctx.user.userId));
+    const nextTask = recommendNextTask([...previousStates.filter((entry) => entry.competencyId !== result.competencyId), { competencyId: result.competencyId, mastery: state.mastery, confidence: state.confidence }]);
+    const nextCompetency = getCompetency(nextTask.assessment.competencyId);
+    const [activeTask] = await ctx.db.select({ id: learningTasks.id, competencyId: learningTasks.competencyId }).from(learningTasks).where(and(eq(learningTasks.learnerId, ctx.user.userId), eq(learningTasks.status, "active"))).limit(1);
     const [existing] = await ctx.db.select({ id: competencyStates.id }).from(competencyStates).where(and(eq(competencyStates.learnerId, ctx.user.userId), eq(competencyStates.competencyId, result.competencyId))).limit(1);
     const stateWrite = existing
       ? ctx.db.update(competencyStates).set(state).where(eq(competencyStates.id, existing.id))
       : ctx.db.insert(competencyStates).values({ id: crypto.randomUUID(), learnerId: ctx.user.userId, competencyId: result.competencyId, ...state });
     await ctx.db.batch([
+      ctx.db.insert(competencies).values({ id: nextTask.assessment.competencyId, name: nextCompetency?.name ?? nextTask.assessment.competencyId, description: nextTask.assessment.title, priority: nextCompetency?.prio ?? "P1", prerequisitesJson: JSON.stringify(nextCompetency?.prerequisites ?? []) }).onConflictDoNothing(),
       ctx.db.update(assessments).set({ answer, score: result.score, feedback: result.feedback, status: "graded" }).where(eq(assessments.id, input.id)),
+      ctx.db.insert(evidence).values({ id: crypto.randomUUID(), learnerId: ctx.user.userId, competencyId: result.competencyId, taskId: activeTask?.competencyId === result.competencyId ? activeTask.id : null, type: "quiz", content: answer, score: result.score, feedback: result.feedback }),
       stateWrite,
+      ctx.db.update(learningTasks).set({ status: "superseded" }).where(and(eq(learningTasks.learnerId, ctx.user.userId), eq(learningTasks.status, "active"))),
+      ctx.db.insert(learningTasks).values({ id: crypto.randomUUID(), learnerId: ctx.user.userId, competencyId: nextTask.assessment.competencyId, title: nextTask.title, instruction: nextTask.instruction, expectedOutput: nextTask.expectedOutput, rubricJson: JSON.stringify({ assessmentId: nextTask.assessment.id, criteria: nextTask.assessment.criteria }), status: "active", sourceUnitId: nextTask.sourceUnitId }),
     ]);
-    return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...result, nextTask });
   } catch (error) { return databaseError(error); }
 }
 
