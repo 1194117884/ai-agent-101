@@ -1,13 +1,14 @@
 export type CompetencySnapshot = { competencyId: string; mastery: number; confidence: number; lastAssessedAt?: string | null; reviewDueAt?: string | null; rationale: string };
 export type EvidenceSnapshot = { competencyId: string; score?: number | null; createdAt: string };
 export type WeaknessAnalysis = { level: "strong" | "watch" | "weak"; evidenceCount: number; recentScores: number[]; reasons: string[]; recommendation: string };
+export type WeaknessContext = { unmetPrerequisites?: string[]; activeTaskCreatedAt?: string | null };
 
 export function nextReviewAt(score: number, now = new Date()) {
   const days = score >= 80 ? 7 : score >= 60 ? 3 : 1;
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-export function analyzeWeakness(state: CompetencySnapshot, evidence: EvidenceSnapshot[], now = new Date()): WeaknessAnalysis {
+export function analyzeWeakness(state: CompetencySnapshot, evidence: EvidenceSnapshot[], now = new Date(), context: WeaknessContext = {}): WeaknessAnalysis {
   const scored = evidence.filter((item) => item.competencyId === state.competencyId && item.score !== null && item.score !== undefined).slice(0, 5);
   const recentScores = scored.map((item) => item.score as number);
   const reasons: string[] = [];
@@ -15,6 +16,8 @@ export function analyzeWeakness(state: CompetencySnapshot, evidence: EvidenceSna
   else if (state.mastery < 80) reasons.push(`掌握度 ${state.mastery}%，尚未达到 80% 巩固线`);
   if (state.confidence < 50) reasons.push(`判断置信度仅 ${state.confidence}%，还需要更多有效证据`);
   if (recentScores.length >= 2 && recentScores.slice(0, 2).every((score) => score < 80)) reasons.push(`最近两次评分均低于 80（${recentScores.slice(0, 2).join("、")}）`);
+  if (context.unmetPrerequisites?.length) reasons.push(`前置能力尚未达标：${context.unmetPrerequisites.join("、")}`);
+  if (isOlderThan(context.activeTaskCreatedAt, now, 3)) reasons.push("当前任务已连续 3 天没有完成，可能遇到阻塞");
   if (isDue(state.reviewDueAt, now)) reasons.push("已到复习时间，存在遗忘风险");
   else if (isStale(state.lastAssessedAt, now)) reasons.push("超过 14 天没有新的评估证据");
   const level = state.mastery < 60 || reasons.length >= 3 ? "weak" : state.mastery < 80 || reasons.length > 0 ? "watch" : "strong";
@@ -24,4 +27,5 @@ export function analyzeWeakness(state: CompetencySnapshot, evidence: EvidenceSna
 
 function isDue(value: string | null | undefined, now: Date) { if (!value) return false; const date = new Date(normalizeDate(value)); return !Number.isNaN(date.getTime()) && date.getTime() <= now.getTime(); }
 function isStale(value: string | null | undefined, now: Date) { if (!value) return false; const date = new Date(normalizeDate(value)); return !Number.isNaN(date.getTime()) && now.getTime() - date.getTime() >= 14 * 24 * 60 * 60 * 1000; }
+function isOlderThan(value: string | null | undefined, now: Date, days: number) { if (!value) return false; const date = new Date(normalizeDate(value)); return !Number.isNaN(date.getTime()) && now.getTime() - date.getTime() >= days * 24 * 60 * 60 * 1000; }
 function normalizeDate(value: string) { return value.includes("T") ? value : `${value.replace(" ", "T")}Z`; }

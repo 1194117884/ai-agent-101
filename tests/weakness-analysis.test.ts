@@ -19,3 +19,13 @@ test("schedules weaker results for earlier review", () => {
   assert.equal(nextReviewAt(40, now), "2026-08-30T12:00:00.000Z");
   assert.equal(nextReviewAt(90, now), "2026-09-05T12:00:00.000Z");
 });
+test("surfaces missing prerequisites and a stalled active task", () => {
+  const result = analyzeWeakness(
+    { competencyId: "reliability", mastery: 82, confidence: 75, rationale: "基础通过", lastAssessedAt: "2026-08-28T12:00:00Z" },
+    [{ competencyId: "reliability", score: 82, createdAt: "2026-08-28" }], now,
+    { unmetPrerequisites: ["Agent Loop / Runtime / State"], activeTaskCreatedAt: "2026-08-25T11:00:00Z" },
+  );
+  assert.equal(result.level, "watch");
+  assert.ok(result.reasons.some((reason) => reason.includes("前置能力")));
+  assert.ok(result.reasons.some((reason) => reason.includes("连续 3 天")));
+});
