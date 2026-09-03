@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   catch { return apiError("请求格式无效。", 400, "INVALID_INPUT"); }
   const message = body.message?.trim();
   if (!message) return apiError("请输入问题。", 400, "INVALID_INPUT");
+  if (message.length > 5000) return apiError("问题不能超过 5000 个字符。", 400, "INVALID_INPUT");
 
   try {
     const db = getDb();
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
       db.insert(conversations).values({ id: learnerConversationId, learnerId: user.userId, role: "learner", content: message }),
-      db.insert(conversations).values({ id: coachConversationId, learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, runtime, qualityContext: { unresolvedCount: unresolvedFeedback.length, reasons: unresolvedFeedback.map((item) => item.reason) }, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
+      db.insert(conversations).values({ id: coachConversationId, learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ request: { conversationId: learnerConversationId, question: message.slice(0, 1000) }, retrieval, delivery: reply.delivery, runtime, qualityContext: { unresolvedCount: unresolvedFeedback.length, reasons: unresolvedFeedback.map((item) => item.reason) }, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
     ]);
     return Response.json({ ...publicReply, retrieval, conversationId: coachConversationId });
   } catch (error) {
