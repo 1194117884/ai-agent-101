@@ -21,7 +21,7 @@ export function recommendNextTask(states: MasteryState[]): TaskRecommendation {
     const state = stateMap.get(assessment.competencyId);
     const unmetPrerequisites = (competency?.prerequisites ?? []).filter((id) => (stateMap.get(id)?.mastery ?? 0) < 60);
     // An observed gap should be repaired before opening more untouched topics.
-    const remediationBoost = state && state.mastery < 80 ? -50 : 0;
+    const remediationBoost = state && state.mastery < 80 ? -100 : 0;
     const rank = (state?.mastery ?? 0) + Math.floor((state?.confidence ?? 0) / 10) + priorityWeight[competency?.prio ?? "P1"] + unmetPrerequisites.length * 12 + remediationBoost;
     return { assessment, competency, state, unmetPrerequisites, rank, order };
   }).sort((a, b) => a.rank - b.rank || a.order - b.order)[0];

@@ -21,6 +21,12 @@ test("keeps a weak competency active until its rubric is covered", () => {
   assert.match(task.reason, /30%/);
 });
 
+test("consolidates a partially passed competency before opening a new topic", () => {
+  const task = recommendNextTask([{ competencyId: "tools", mastery: 70, confidence: 70 }]);
+  assert.equal(task.assessment.competencyId, "tools");
+  assert.match(task.reason, /70%/);
+});
+
 test("reads versioned rubric envelopes while preserving legacy arrays", () => {
   const envelope = JSON.stringify({ assessmentId: "trace-failure-analysis", criteria: [{ label: "定位根因" }] });
   assert.equal(rubricAssessmentId(envelope), "trace-failure-analysis");
