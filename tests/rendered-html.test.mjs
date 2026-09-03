@@ -15,6 +15,12 @@ test("build contains the authenticated learning shell and Google login gate", as
   assert.match(page, /看今日任务/);
   assert.match(page, /提交你的答案/);
   assert.match(page, /获得下一步/);
+  assert.match(page, /课程地图/);
+  const curriculumPage = await readFile(new URL("../app/curriculum/page.tsx", import.meta.url), "utf8");
+  const curriculumMap = await readFile(new URL("../app/curriculum/CurriculumMap.tsx", import.meta.url), "utf8");
+  assert.match(curriculumPage, /30 天课程地图/);
+  assert.match(curriculumMap, /当前任务/);
+  assert.match(curriculumMap, /已掌握/);
   assert.match(login, /继续你的 Agent 训练/);
   assert.match(login, /accounts\.google\.com\/gsi\/client/);
   assert.match(auth, /agent_session/);
