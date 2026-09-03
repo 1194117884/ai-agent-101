@@ -26,6 +26,10 @@ test("build contains the authenticated learning shell and Google login gate", as
   assert.match(runMonitor, /渠道尝试/);
   assert.match(runMonitor, /工具调用/);
   assert.match(runMonitor, /知识召回/);
+  assert.match(runMonitor, /没解决/);
+  const coachChat = await readFile(new URL("../app/CoachChat.tsx", import.meta.url), "utf8");
+  assert.match(coachChat, /这次回答解决问题了吗/);
+  await access(new URL("../app/api/coach/feedback/route.ts", import.meta.url));
   assert.match(login, /继续你的 Agent 训练/);
   assert.match(login, /accounts\.google\.com\/gsi\/client/);
   assert.match(auth, /agent_session/);

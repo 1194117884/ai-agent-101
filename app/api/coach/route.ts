@@ -54,13 +54,15 @@ export async function POST(request: Request) {
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
     const reply = await generateCoachReply(message, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge, learningContext, createCoachTools(learningContext));
     const { runtime, ...publicReply } = reply;
+    const learnerConversationId = crypto.randomUUID();
+    const coachConversationId = crypto.randomUUID();
     const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
-      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "learner", content: message }),
-      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, runtime, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
+      db.insert(conversations).values({ id: learnerConversationId, learnerId: user.userId, role: "learner", content: message }),
+      db.insert(conversations).values({ id: coachConversationId, learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, runtime, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
     ]);
-    return Response.json({ ...publicReply, retrieval });
+    return Response.json({ ...publicReply, retrieval, conversationId: coachConversationId });
   } catch (error) {
     return databaseError(error);
   }
