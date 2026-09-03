@@ -17,6 +17,7 @@ type KnowledgeConflict = { title: string; versions: string[]; preferredVersion?:
 import { curriculumContext } from "./curriculum.ts";
 import { formatCoachLearningContext, type CoachLearningContext } from "./coach-context.ts";
 import { classifyCoachQuestion, type CoachIssueType } from "./coach-guidance.ts";
+import type { CoachToolRuntime } from "./coach-tools.ts";
 
 type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
 type Environment = Record<string, string | undefined>;
@@ -67,12 +68,27 @@ function rotateKeys(provider: Provider): string[] {
   return provider.keys.map((_, index) => provider.keys[(start + index) % provider.keys.length]);
 }
 
-function requestFor(provider: Provider, key: string, prompt: string): RequestInit {
+type ToolCall = { id: string; name: string; input: Record<string, unknown> };
+type ProviderTurn = { text: string; toolCalls: ToolCall[]; rawAssistant: unknown };
+type ToolResult = { call: ToolCall; content: string };
+type ToolExchange = { turn: ProviderTurn; results: ToolResult[] };
+
+function toolDefinitions(provider: Provider, tools?: CoachToolRuntime) {
+  if (!tools) return {};
+  if (provider.name === "anthropic") return { tools: tools.definitions.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })) };
+  return { tools: tools.definitions.map((tool) => ({ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.inputSchema } })), tool_choice: "auto" };
+}
+
+function requestFor(provider: Provider, key: string, prompt: string, tools?: CoachToolRuntime, exchanges: ToolExchange[] = []): RequestInit {
   if (provider.name === "anthropic") {
-    return { method: "POST", headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: provider.model, max_tokens: 700, system: SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }] }) };
+    const messages: unknown[] = [{ role: "user", content: prompt }];
+    for (const exchange of exchanges) messages.push({ role: "assistant", content: exchange.turn.rawAssistant }, { role: "user", content: exchange.results.map((result) => ({ type: "tool_result", tool_use_id: result.call.id, content: result.content })) });
+    return { method: "POST", headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: provider.model, max_tokens: 700, system: SYSTEM_PROMPT, ...toolDefinitions(provider, tools), messages }) };
   }
   const outputControl = provider.name === "deepseek" ? { thinking: { type: "disabled" }, response_format: { type: "json_object" } } : {};
-  return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 1000, ...outputControl, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] }) };
+  const messages: unknown[] = [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }];
+  for (const exchange of exchanges) messages.push(exchange.turn.rawAssistant, ...exchange.results.map((result) => ({ role: "tool", tool_call_id: result.call.id, content: result.content })));
+  return { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model: provider.model, max_tokens: 1000, ...outputControl, ...toolDefinitions(provider, tools), messages }) };
 }
 
 function timeoutSetting(value: string | undefined, fallback: number, maximum: number) {
@@ -90,10 +106,26 @@ async function fetchWithin(fetcher: typeof fetch, input: string, init: RequestIn
   finally { if (timer) clearTimeout(timer); }
 }
 
-function responseText(provider: Provider, data: unknown): string {
-  if (!data || typeof data !== "object") return "";
-  if (provider.name === "anthropic") return (data as { content?: { type?: string; text?: string }[] }).content?.find((item) => item.type === "text")?.text ?? "";
-  return (data as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "";
+function providerTurn(provider: Provider, data: unknown): ProviderTurn {
+  if (!data || typeof data !== "object") return { text: "", toolCalls: [], rawAssistant: {} };
+  if (provider.name === "anthropic") {
+    const content = (data as { content?: { type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[] }).content ?? [];
+    return { text: content.filter((item) => item.type === "text").map((item) => item.text ?? "").join("\n"), toolCalls: content.filter((item) => item.type === "tool_use" && item.id && item.name).map((item) => ({ id: item.id!, name: item.name!, input: item.input ?? {} })), rawAssistant: content };
+  }
+  const message = (data as { choices?: { message?: { role?: string; content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[] }).choices?.[0]?.message ?? {};
+  const toolCalls = (message.tool_calls ?? []).flatMap((item) => {
+    if (!item.id || !item.function?.name) return [];
+    try { return [{ id: item.id, name: item.function.name, input: JSON.parse(item.function.arguments ?? "{}") as Record<string, unknown> }]; }
+    catch { return [{ id: item.id, name: item.function.name, input: {} }]; }
+  });
+  return { text: message.content ?? "", toolCalls, rawAssistant: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls } };
+}
+
+async function executeToolCalls(runtime: CoachToolRuntime, calls: ToolCall[]): Promise<ToolResult[]> {
+  return Promise.all(calls.map(async (call) => {
+    try { return { call, content: JSON.stringify(await runtime.execute(call.name, call.input)) }; }
+    catch { return { call, content: JSON.stringify({ error: "工具执行失败", nextStep: "根据已有上下文回答，并说明无法核对的数据" }) }; }
+  }));
 }
 
 function parseReply(text: string): CoachReply | null {
@@ -113,7 +145,7 @@ async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt
   catch { /* Telemetry must never interrupt provider failover or the learner response. */ }
 }
 
-export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"]; conflicts?: KnowledgeConflict[] }, learningContext?: CoachLearningContext): Promise<CoachReply> {
+export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"]; conflicts?: KnowledgeConflict[] }, learningContext?: CoachLearningContext, tools?: CoachToolRuntime): Promise<CoachReply> {
   const guidance = classifyCoachQuestion(message);
   const course = curriculumContext(message);
   const retrieved = knowledge?.context ? `\n\n已发布知识库片段：\n${knowledge.context}` : "";
@@ -128,12 +160,26 @@ export async function generateCoachReply(message: string, priorScore: number | n
       const remainingMs = deadline - Date.now();
       if (remainingMs < 10) break providerLoop;
       try {
-        const response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt), Math.min(attemptTimeoutMs, remainingMs));
+        let response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt, tools), Math.min(attemptTimeoutMs, remainingMs));
         if (!response.ok) {
           await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
           continue;
         }
-        const reply = parseReply(responseText(provider, await response.json()));
+        let turn = providerTurn(provider, await response.json());
+        const exchanges: ToolExchange[] = [];
+        while (turn.toolCalls.length && tools && exchanges.length < 3) {
+          const results = await executeToolCalls(tools, turn.toolCalls);
+          exchanges.push({ turn, results });
+          const toolRemainingMs = deadline - Date.now();
+          if (toolRemainingMs < 10) throw new Error("PROVIDER_TIMEOUT");
+          response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt, tools, exchanges), Math.min(attemptTimeoutMs, toolRemainingMs));
+          if (!response.ok) {
+            await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
+            continue;
+          }
+          turn = providerTurn(provider, await response.json());
+        }
+        const reply = parseReply(turn.text);
         if (reply) {
           await reportAttempt(reporter, { provider: provider.name, key, outcome: "success" });
           return { ...reply, issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };

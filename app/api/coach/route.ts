@@ -5,6 +5,7 @@ import { competencyStates, conversations, evidence, learnerProfiles, learningTas
 import { databaseAIConfiguration } from "../../../lib/ai-settings";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { generateCoachReply, type CoachAttemptReporter } from "../../../lib/coach";
+import { createCoachTools } from "../../../lib/coach-tools";
 import { retrieveKnowledge } from "../../../lib/knowledge-retrieval";
 import type { KnowledgeRetrievalMatch } from "../../../lib/knowledge-retrieval";
 import { rubricLabels } from "../../../lib/rubric";
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; publishedAt?: string | null; fetchedAt?: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], conflicts: [] as { key: string; title: string; versions: string[]; documentIds: string[]; preferredDocumentId: string | null; preferredVersion: string | null; preferenceReason: "authority" | "newer_version" | "uncertain" }[], retrievalMode: "unavailable" as string };
     try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
-    const reply = await generateCoachReply(message, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge, learningContext);
+    const reply = await generateCoachReply(message, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge, learningContext, createCoachTools(learningContext));
     const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([

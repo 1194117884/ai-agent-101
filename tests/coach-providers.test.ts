@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { configuredProviders, generateCoachReply } from "../lib/coach.ts";
+import type { CoachToolRuntime } from "../lib/coach-tools.ts";
 
 const reply = JSON.stringify({ answer: "回答", followUp: "追问", focus: "重点", source: "来源" });
 
@@ -122,4 +123,59 @@ test("includes bounded task, competency, evidence and conversation context in th
   assert.match(prompt, /缺少下一步/);
   assert.match(prompt, /学生：我不懂错误设计/);
   assert.match(prompt, /学生当前问题：我下一步怎么办/);
+});
+
+test("returns OpenAI-compatible tool results with the original tool call id", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const tools: CoachToolRuntime = {
+    definitions: [{ name: "get_curriculum_unit", description: "读取课程", inputSchema: { type: "object", properties: { day: { type: "integer" } }, required: ["day"], additionalProperties: false } }],
+    execute: async (name, input) => ({ name, day: input.day, title: "工具契约" }),
+  };
+  const result = await generateCoachReply("Day 3 学什么？", null, { OPENAI_API_KEYS: "key", AI_PROVIDER_ORDER: "openai" }, async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    bodies.push(body);
+    if (bodies.length === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [{ id: "call_exact_123", type: "function", function: { name: "get_curriculum_unit", arguments: "{\"day\":3}" } }] } }] });
+    return Response.json({ choices: [{ message: { content: reply } }] });
+  }, undefined, undefined, undefined, tools);
+  assert.equal(result.delivery?.mode, "model");
+  const firstTools = bodies[0].tools as { function: { name: string } }[];
+  const secondMessages = bodies[1].messages as { role: string; tool_call_id?: string; content?: string | null; tool_calls?: { id: string }[] }[];
+  assert.equal(firstTools[0].function.name, "get_curriculum_unit");
+  assert.deepEqual(secondMessages.at(-1), { role: "tool", tool_call_id: "call_exact_123", content: JSON.stringify({ name: "get_curriculum_unit", day: 3, title: "工具契约" }) });
+  assert.equal(secondMessages.at(-2)?.tool_calls?.[0].id, "call_exact_123");
+});
+
+test("returns Anthropic tool results with the original tool_use id", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const tools: CoachToolRuntime = {
+    definitions: [{ name: "get_learning_context", description: "读取学习状态", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false } }],
+    execute: async () => ({ mastery: 65 }),
+  };
+  await generateCoachReply("我哪里薄弱？", null, { ANTHROPIC_API_KEYS: "key", AI_PROVIDER_ORDER: "anthropic" }, async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    bodies.push(body);
+    if (bodies.length === 1) return Response.json({ content: [{ type: "tool_use", id: "toolu_exact_456", name: "get_learning_context", input: {} }] });
+    return Response.json({ content: [{ type: "text", text: reply }] });
+  }, undefined, undefined, undefined, tools);
+  const firstTools = bodies[0].tools as { name: string }[];
+  const secondMessages = bodies[1].messages as { content: { type: string; id?: string; tool_use_id?: string; content?: string }[] }[];
+  assert.equal(firstTools[0].name, "get_learning_context");
+  assert.deepEqual(secondMessages.at(-1)?.content[0], { type: "tool_result", tool_use_id: "toolu_exact_456", content: JSON.stringify({ mastery: 65 }) });
+  assert.equal(secondMessages.at(-2)?.content[0].id, "toolu_exact_456");
+});
+
+test("supports bounded sequential tool rounds while retaining prior ids", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const tools: CoachToolRuntime = {
+    definitions: [{ name: "lookup", description: "查询", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false } }],
+    execute: async (_name, input) => input,
+  };
+  await generateCoachReply("连续查询", null, { OPENAI_API_KEYS: "key", AI_PROVIDER_ORDER: "openai" }, async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    bodies.push(body);
+    if (bodies.length < 3) return Response.json({ choices: [{ message: { content: null, tool_calls: [{ id: `call_${bodies.length}`, type: "function", function: { name: "lookup", arguments: JSON.stringify({ round: bodies.length }) } }] } }] });
+    return Response.json({ choices: [{ message: { content: reply } }] });
+  }, undefined, undefined, undefined, tools);
+  const finalMessages = bodies[2].messages as { role: string; tool_call_id?: string }[];
+  assert.deepEqual(finalMessages.filter((message) => message.role === "tool").map((message) => message.tool_call_id), ["call_1", "call_2"]);
 });
