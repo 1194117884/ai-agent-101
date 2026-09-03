@@ -10,6 +10,7 @@ import { Login } from "./Login";
 import { LogoutButton } from "./LogoutButton";
 import { getAdminUser } from "./admin-auth";
 import { ProfileSettings } from "./ProfileSettings";
+import { NotificationCenter } from "./NotificationCenter";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function Home() {
   return <main className="coach-shell">
     <header className="coach-nav">
       <div className="brand"><span className="brand-mark">A</span><div><strong>阿建私教</strong><small>Agent Engineering Coach</small></div></div>
-      <div className="nav-actions"><ProfileSettings />{admin && <details className="admin-menu"><summary>管理后台</summary><div><Link href="/knowledge/upload">上传资料</Link><Link href="/admin/knowledge">知识库</Link><Link href="/admin/ai">AI 渠道</Link></div></details>}<LogoutButton /></div>
+      <div className="nav-actions"><NotificationCenter /><ProfileSettings />{admin && <details className="admin-menu"><summary>管理后台</summary><div><Link href="/knowledge/upload">上传资料</Link><Link href="/admin/knowledge">知识库</Link><Link href="/admin/ai">AI 渠道</Link></div></details>}<LogoutButton /></div>
     </header>
 
     <section className="welcome-hero">
@@ -41,6 +42,6 @@ export default async function Home() {
 
     <section className="support-section"><div className="section-intro compact"><span>学习辅助</span><h2>卡住时问老师，完成后看变化</h2><p>这些功能服务于今日任务，不需要逐项完成。</p></div><div className="support-grid"><CoachChat /><LearningState /></div></section>
 
-    <details className="more-tools"><summary><div><span>进阶工具</span><strong>小测与学习记录</strong><small>完成主任务后，再用小测验证掌握情况或回看历史。</small></div><b>展开查看 ＋</b></summary><div className="more-tools-grid"><section className="panel"><div className="panel-heading"><div><span className="step-number">✓</span><div><h2>快速小测</h2><p>用一个问题确认是否真的掌握。</p></div></div><span className="panel-tag">可选</span></div><Quiz /></section><ActivityHistory /></div></details>
+    <details className="more-tools" id="advanced-tools"><summary><div><span>进阶工具</span><strong>小测与学习记录</strong><small>完成主任务后，再用小测验证掌握情况或回看历史。</small></div><b>展开查看 ＋</b></summary><div className="more-tools-grid"><section className="panel" id="quick-quiz"><div className="panel-heading"><div><span className="step-number">✓</span><div><h2>快速小测</h2><p>用一个问题确认是否真的掌握。</p></div></div><span className="panel-tag">可选</span></div><Quiz /></section><ActivityHistory /></div></details>
   </main>;
 }

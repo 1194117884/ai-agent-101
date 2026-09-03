@@ -6,6 +6,7 @@ import { rubricLabels } from "../../../lib/rubric";
 import { analyzeWeakness } from "../../../lib/weakness-analysis";
 import { getCompetency } from "../../../curriculum/catalog";
 import { buildStageReport } from "../../../lib/stage-report";
+import { buildLearningNotifications } from "../../../lib/learning-notifications";
 
 export async function GET() {
   const user = await getCloudflareUser();
@@ -32,6 +33,7 @@ export async function GET() {
     task: task ? { ...task, rubric: rubricLabels(task.rubricJson) } : null,
     competencies: competencyViews,
     stageReport: buildStageReport(competencyViews, recentEvidence),
+    notifications: buildLearningNotifications(competencyViews, task, profile?.weeklyHours ?? 8),
     evidence: recentEvidence.slice(0, 8).map((item) => ({ ...item, competencyName: nameMap[item.competencyId] ?? item.competencyId })),
     conversations: recentConversations.reverse(),
   });
