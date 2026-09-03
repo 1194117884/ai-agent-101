@@ -12,7 +12,9 @@ export type CoachReply = {
   source: string;
   delivery?: { mode: "model" | "fallback"; provider?: ProviderName; reason?: "not_configured" | "provider_error" };
   retrievedSources?: { title: string; url: string | null; versionLabel: string | null; publishedAt?: string | null; fetchedAt?: string | null; trustLevel: string }[];
+  runtime?: CoachRuntimeTrace;
 };
+export type CoachRuntimeTrace = { durationMs: number; attempts: { provider: ProviderName; outcome: "success" | "failure"; error?: string }[]; toolCalls: { id: string; name: string; outcome: "success" | "failure"; durationMs: number }[]; termination: "model" | "fallback" };
 type KnowledgeConflict = { title: string; versions: string[]; preferredVersion?: string | null; preferenceReason?: "authority" | "newer_version" | "uncertain" };
 import { curriculumContext } from "./curriculum.ts";
 import { formatCoachLearningContext, type CoachLearningContext } from "./coach-context.ts";
@@ -121,10 +123,11 @@ function providerTurn(provider: Provider, data: unknown): ProviderTurn {
   return { text: message.content ?? "", toolCalls, rawAssistant: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls } };
 }
 
-async function executeToolCalls(runtime: CoachToolRuntime, calls: ToolCall[]): Promise<ToolResult[]> {
+async function executeToolCalls(runtime: CoachToolRuntime, calls: ToolCall[], trace: CoachRuntimeTrace["toolCalls"]): Promise<ToolResult[]> {
   return Promise.all(calls.map(async (call) => {
-    try { return { call, content: JSON.stringify(await runtime.execute(call.name, call.input)) }; }
-    catch { return { call, content: JSON.stringify({ error: "工具执行失败", nextStep: "根据已有上下文回答，并说明无法核对的数据" }) }; }
+    const startedAt = Date.now();
+    try { const content = JSON.stringify(await runtime.execute(call.name, call.input)); trace.push({ id: call.id, name: call.name, outcome: "success", durationMs: Date.now() - startedAt }); return { call, content }; }
+    catch { trace.push({ id: call.id, name: call.name, outcome: "failure", durationMs: Date.now() - startedAt }); return { call, content: JSON.stringify({ error: "工具执行失败", nextStep: "根据已有上下文回答，并说明无法核对的数据" }) }; }
   }));
 }
 
@@ -146,6 +149,11 @@ async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt
 }
 
 export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"]; conflicts?: KnowledgeConflict[] }, learningContext?: CoachLearningContext, tools?: CoachToolRuntime): Promise<CoachReply> {
+  const startedAt = Date.now();
+  const attempts: CoachRuntimeTrace["attempts"] = [];
+  const toolCalls: CoachRuntimeTrace["toolCalls"] = [];
+  const runtime = (termination: CoachRuntimeTrace["termination"]): CoachRuntimeTrace => ({ durationMs: Date.now() - startedAt, attempts, toolCalls, termination });
+  const recordAttempt = async (attempt: CoachAttempt) => { attempts.push({ provider: attempt.provider, outcome: attempt.outcome, error: attempt.error }); await reportAttempt(reporter, attempt); };
   const guidance = classifyCoachQuestion(message);
   const course = curriculumContext(message);
   const retrieved = knowledge?.context ? `\n\n已发布知识库片段：\n${knowledge.context}` : "";
@@ -162,36 +170,36 @@ export async function generateCoachReply(message: string, priorScore: number | n
       try {
         let response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt, tools), Math.min(attemptTimeoutMs, remainingMs));
         if (!response.ok) {
-          await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
+          await recordAttempt({ provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
           continue;
         }
         let turn = providerTurn(provider, await response.json());
         const exchanges: ToolExchange[] = [];
         while (turn.toolCalls.length && tools && exchanges.length < 3) {
-          const results = await executeToolCalls(tools, turn.toolCalls);
+          const results = await executeToolCalls(tools, turn.toolCalls, toolCalls);
           exchanges.push({ turn, results });
           const toolRemainingMs = deadline - Date.now();
           if (toolRemainingMs < 10) throw new Error("PROVIDER_TIMEOUT");
           response = await fetchWithin(fetcher, provider.endpoint, requestFor(provider, key, prompt, tools, exchanges), Math.min(attemptTimeoutMs, toolRemainingMs));
           if (!response.ok) {
-            await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
+            await recordAttempt({ provider: provider.name, key, outcome: "failure", error: `HTTP ${response.status}` });
             continue;
           }
           turn = providerTurn(provider, await response.json());
         }
         const reply = parseReply(turn.text);
         if (reply) {
-          await reportAttempt(reporter, { provider: provider.name, key, outcome: "success" });
-          return { ...reply, issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };
+          await recordAttempt({ provider: provider.name, key, outcome: "success" });
+          return { ...reply, issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name }, runtime: runtime("model") };
         }
-        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
+        await recordAttempt({ provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
       } catch (error) {
-        await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: error instanceof Error && error.message === "PROVIDER_TIMEOUT" ? "TIMEOUT" : "NETWORK_ERROR" });
+        await recordAttempt({ provider: provider.name, key, outcome: "failure", error: error instanceof Error && error.message === "PROVIDER_TIMEOUT" ? "TIMEOUT" : "NETWORK_ERROR" });
         // Try the next key, then the next configured provider.
       }
     }
   }
-  return { ...coach(message, priorScore), issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
+  return { ...coach(message, priorScore), issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" }, runtime: runtime("fallback") };
 }
 
 export function coach(message: string, priorScore: number | null): CoachReply {

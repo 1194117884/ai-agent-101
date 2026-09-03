@@ -138,6 +138,9 @@ test("returns OpenAI-compatible tool results with the original tool call id", as
     return Response.json({ choices: [{ message: { content: reply } }] });
   }, undefined, undefined, undefined, tools);
   assert.equal(result.delivery?.mode, "model");
+  assert.equal(result.runtime?.termination, "model");
+  assert.deepEqual(result.runtime?.attempts.map(({ provider, outcome }) => ({ provider, outcome })), [{ provider: "openai", outcome: "success" }]);
+  assert.deepEqual(result.runtime?.toolCalls.map(({ id, name, outcome }) => ({ id, name, outcome })), [{ id: "call_exact_123", name: "get_curriculum_unit", outcome: "success" }]);
   const firstTools = bodies[0].tools as { function: { name: string } }[];
   const secondMessages = bodies[1].messages as { role: string; tool_call_id?: string; content?: string | null; tool_calls?: { id: string }[] }[];
   assert.equal(firstTools[0].function.name, "get_curriculum_unit");
