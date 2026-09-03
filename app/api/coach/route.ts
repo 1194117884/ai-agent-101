@@ -33,6 +33,8 @@ export async function POST(request: Request) {
     const learningContext = {
       goal: profile?.learningGoal ?? "掌握 Agent Engineering",
       currentProject: profile?.currentProject,
+      weeklyHours: profile?.weeklyHours,
+      learningPace: profile?.learningPace,
       currentTask: task ? { title: task.title, competencyName: getCompetency(task.competencyId)?.name ?? task.competencyId, instruction: task.instruction, expectedOutput: task.expectedOutput, rubric: rubricLabels(task.rubricJson) } : null,
       competencies: states.map((state) => ({ name: getCompetency(state.competencyId)?.name ?? state.competencyId, mastery: state.mastery, confidence: state.confidence, rationale: state.rationale })),
       recentEvidence: recentEvidence.map((item) => ({ competencyName: getCompetency(item.competencyId)?.name ?? item.competencyId, type: item.type, score: item.score, feedback: item.feedback, content: item.content })),

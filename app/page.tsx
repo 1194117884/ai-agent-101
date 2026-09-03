@@ -9,6 +9,7 @@ import { getCloudflareUser } from "./auth";
 import { Login } from "./Login";
 import { LogoutButton } from "./LogoutButton";
 import { getAdminUser } from "./admin-auth";
+import { ProfileSettings } from "./ProfileSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function Home() {
   return <main className="coach-shell">
     <header className="coach-nav">
       <div className="brand"><span className="brand-mark">A</span><div><strong>阿建私教</strong><small>Agent Engineering Coach</small></div></div>
-      <div className="nav-actions">{admin && <details className="admin-menu"><summary>管理后台</summary><div><Link href="/knowledge/upload">上传资料</Link><Link href="/admin/knowledge">知识库</Link><Link href="/admin/ai">AI 渠道</Link></div></details>}<LogoutButton /></div>
+      <div className="nav-actions"><ProfileSettings />{admin && <details className="admin-menu"><summary>管理后台</summary><div><Link href="/knowledge/upload">上传资料</Link><Link href="/admin/knowledge">知识库</Link><Link href="/admin/ai">AI 渠道</Link></div></details>}<LogoutButton /></div>
     </header>
 
     <section className="welcome-hero">

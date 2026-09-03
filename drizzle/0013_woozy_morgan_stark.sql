@@ -1,0 +1,1 @@
+ALTER TABLE `learner_profiles` ADD `learning_pace` text DEFAULT 'steady' NOT NULL;

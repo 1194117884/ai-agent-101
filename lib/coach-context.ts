@@ -1,6 +1,8 @@
 export type CoachLearningContext = {
   goal: string;
   currentProject?: string | null;
+  learningPace?: string;
+  weeklyHours?: number;
   currentTask?: { title: string; competencyName: string; instruction: string; expectedOutput: string; rubric: string[] } | null;
   competencies: { name: string; mastery: number; confidence: number; rationale: string }[];
   recentEvidence: { competencyName: string; type: string; score: number | null; feedback: string | null; content: string }[];
@@ -21,7 +23,7 @@ export function formatCoachLearningContext(context?: CoachLearningContext) {
   const conversation = context.recentConversation.length
     ? context.recentConversation.map((item) => `- ${item.role === "coach" ? "老师" : "学生"}：${clip(item.content, 180)}`).join("\n")
     : "- 暂无历史对话";
-  return `\n\n学习者上下文：\n学习目标：${context.goal}${context.currentProject ? `\n当前项目：${context.currentProject}` : ""}\n${task}\n能力画像：\n${competencies}\n最近证据：\n${evidence}\n最近对话：\n${conversation}`;
+  return `\n\n学习者上下文：\n学习目标：${context.goal}${context.currentProject ? `\n当前项目：${context.currentProject}` : ""}${context.weeklyHours ? `\n每周投入：${context.weeklyHours} 小时` : ""}${context.learningPace ? `\n学习节奏：${context.learningPace}` : ""}\n${task}\n能力画像：\n${competencies}\n最近证据：\n${evidence}\n最近对话：\n${conversation}`;
 }
 
 function clip(value: string, limit: number) { return value.length > limit ? `${value.slice(0, limit)}…` : value; }
