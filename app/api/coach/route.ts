@@ -28,9 +28,15 @@ export async function POST(request: Request) {
       db.select().from(learningTasks).where(and(eq(learningTasks.learnerId, user.userId), eq(learningTasks.status, "active"))).orderBy(desc(learningTasks.updatedAt)).limit(1),
       db.select().from(competencyStates).where(eq(competencyStates.learnerId, user.userId)).orderBy(desc(competencyStates.updatedAt)).limit(8),
       db.select().from(evidence).where(eq(evidence.learnerId, user.userId)).orderBy(desc(evidence.createdAt)).limit(5),
-      db.select({ role: conversations.role, content: conversations.content }).from(conversations).where(eq(conversations.learnerId, user.userId)).orderBy(desc(conversations.createdAt)).limit(4),
+      db.select({ role: conversations.role, content: conversations.content, metadataJson: conversations.metadataJson }).from(conversations).where(eq(conversations.learnerId, user.userId)).orderBy(desc(conversations.createdAt)).limit(8),
     ]);
     const last = recentEvidence[0];
+    const feedbackReasons: Record<string, string> = { inaccurate: "内容不准确", misunderstood: "没理解问题", unactionable: "步骤不可执行", irrelevant_source: "资料不相关" };
+    const unresolvedFeedback = recentConversation.flatMap((item) => {
+      if (item.role !== "coach") return [];
+      try { const feedback = (JSON.parse(item.metadataJson ?? "{}") as { userFeedback?: { rating?: string; reason?: string } }).userFeedback; return feedback?.rating === "unhelpful" ? [{ reason: feedbackReasons[feedback.reason ?? ""] ?? "未说明", answerSummary: item.content }] : []; }
+      catch { return []; }
+    }).slice(0, 3);
     const learningContext = {
       goal: profile?.learningGoal ?? "掌握 Agent Engineering",
       currentProject: profile?.currentProject,
@@ -39,7 +45,8 @@ export async function POST(request: Request) {
       currentTask: task ? { title: task.title, competencyName: getCompetency(task.competencyId)?.name ?? task.competencyId, instruction: task.instruction, expectedOutput: task.expectedOutput, rubric: rubricLabels(task.rubricJson) } : null,
       competencies: states.map((state) => ({ name: getCompetency(state.competencyId)?.name ?? state.competencyId, mastery: state.mastery, confidence: state.confidence, rationale: state.rationale })),
       recentEvidence: recentEvidence.map((item) => ({ competencyName: getCompetency(item.competencyId)?.name ?? item.competencyId, type: item.type, score: item.score, feedback: item.feedback, content: item.content })),
-      recentConversation: recentConversation.reverse(),
+      recentConversation: recentConversation.slice(0, 4).reverse().map(({ role, content }) => ({ role, content })),
+      unresolvedFeedback,
     };
     let aiEnvironment: Record<string, string | undefined> = process.env;
     let reportAttempt: CoachAttemptReporter | undefined;
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
       db.insert(conversations).values({ id: learnerConversationId, learnerId: user.userId, role: "learner", content: message }),
-      db.insert(conversations).values({ id: coachConversationId, learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, runtime, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
+      db.insert(conversations).values({ id: coachConversationId, learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, runtime, qualityContext: { unresolvedCount: unresolvedFeedback.length, reasons: unresolvedFeedback.map((item) => item.reason) }, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask, issueType: reply.issueType, teachingMode: reply.teachingMode }) }),
     ]);
     return Response.json({ ...publicReply, retrieval, conversationId: coachConversationId });
   } catch (error) {

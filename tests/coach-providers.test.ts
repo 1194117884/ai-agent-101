@@ -117,12 +117,16 @@ test("includes bounded task, competency, evidence and conversation context in th
     competencies: [{ name: "工具设计", mastery: 65, confidence: 50, rationale: "失败返回不足" }],
     recentEvidence: [{ competencyName: "工具设计", type: "quiz", score: 65, feedback: "缺少下一步", content: "只返回 error" }],
     recentConversation: [{ role: "learner", content: "我不懂错误设计" }],
+    unresolvedFeedback: [{ reason: "步骤不可执行", answerSummary: "直接运行一个不存在的命令" }],
   });
   assert.match(prompt, /当前任务：工具契约/);
   assert.match(prompt, /掌握度 65%/);
   assert.match(prompt, /缺少下一步/);
   assert.match(prompt, /学生：我不懂错误设计/);
   assert.match(prompt, /学生当前问题：我下一步怎么办/);
+  assert.match(prompt, /最近未解决反馈/);
+  assert.match(prompt, /步骤不可执行/);
+  assert.match(prompt, /不要重复同一种解释或步骤/);
 });
 
 test("returns OpenAI-compatible tool results with the original tool call id", async () => {
