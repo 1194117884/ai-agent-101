@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
       db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "learner", content: message }),
-      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.answer}\n追问：${reply.followUp}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, focus: reply.focus }) }),
+      db.insert(conversations).values({ id: crypto.randomUUID(), learnerId: user.userId, role: "coach", content: `${reply.feedback}\n下一步：${reply.nextTask}\n验收问题：${reply.question}`, source: reply.source, metadataJson: JSON.stringify({ retrieval, delivery: reply.delivery, focus: reply.focus, diagnosis: reply.diagnosis, nextTask: reply.nextTask }) }),
     ]);
     return Response.json({ ...reply, retrieval });
   } catch (error) {

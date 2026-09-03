@@ -34,7 +34,7 @@
 
 ## P0：教师 Agent 核心循环
 
-- [ ] 定义教师 Agent 的结构化输出：`diagnosis`、`next_task`、`question`、`feedback`、`competency_updates`。
+- [x] 定义并展示教师 Agent 的结构化输出：`diagnosis`、`feedback`、`next_task`、`question`；能力变化仍由正式评分证据控制。
 - [x] 为教师答疑提供只读上下文：课程检索、能力画像、最近证据、资料来源、当前任务和近期对话。
 - [ ] 提供受控写入工具：创建/调整任务、记录提交、记录评分、更新能力状态。
 - [ ] 实现标准 tool-call 循环，保留每个 tool-use ID 并回传对应结果。

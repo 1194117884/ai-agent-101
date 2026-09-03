@@ -41,11 +41,22 @@ test("fails over across keys and providers", async () => {
     DEEPSEEK_API_KEYS: "d-1",
   }, fetcher);
   assert.equal(result.answer, "回答");
+  assert.equal(result.feedback, "回答");
+  assert.equal(result.question, "追问");
   assert.deepEqual(result.delivery, { mode: "model", provider: "deepseek" });
   assert.deepEqual(calls.map((call) => call.auth), ["a-1", "a-2", "Bearer d-1"]);
   assert.match(calls[2].url, /deepseek/);
   assert.deepEqual(calls[2].body.thinking, { type: "disabled" });
   assert.deepEqual(calls[2].body.response_format, { type: "json_object" });
+});
+
+test("parses the structured teacher diagnosis contract", async () => {
+  const structured = JSON.stringify({ diagnosis: "前置概念不清", feedback: "先区分选择与调用", nextTask: "写两个边界案例", question: "什么情况下不应调用？", focus: "工具设计", source: "课程" });
+  const result = await generateCoachReply("帮我诊断", null, { OPENAI_API_KEYS: "key", AI_PROVIDER_ORDER: "openai" }, async () => Response.json({ choices: [{ message: { content: structured } }] }));
+  assert.equal(result.diagnosis, "前置概念不清");
+  assert.equal(result.nextTask, "写两个边界案例");
+  assert.equal(result.answer, result.feedback);
+  assert.equal(result.followUp, result.question);
 });
 
 test("reports a safe fallback when all configured model keys fail", async () => {
