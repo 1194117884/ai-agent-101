@@ -92,3 +92,23 @@ test("times out a stalled key and fails over within the total reply budget", asy
   assert.equal(result.delivery?.mode, "model");
   assert.deepEqual(attempts, [{ outcome: "failure", error: "TIMEOUT" }, { outcome: "success", error: undefined }]);
 });
+
+test("includes bounded task, competency, evidence and conversation context in the model prompt", async () => {
+  let prompt = "";
+  await generateCoachReply("我下一步怎么办？", 65, { OPENAI_API_KEYS: "key", AI_PROVIDER_ORDER: "openai" }, async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: { role: string; content: string }[] };
+    prompt = body.messages.find((item) => item.role === "user")?.content ?? "";
+    return Response.json({ choices: [{ message: { content: reply } }] });
+  }, undefined, undefined, {
+    goal: "独立完成 Agent 项目",
+    currentTask: { title: "工具契约", competencyName: "工具设计", instruction: "写出契约", expectedOutput: "JSON schema", rubric: ["错误可恢复"] },
+    competencies: [{ name: "工具设计", mastery: 65, confidence: 50, rationale: "失败返回不足" }],
+    recentEvidence: [{ competencyName: "工具设计", type: "quiz", score: 65, feedback: "缺少下一步", content: "只返回 error" }],
+    recentConversation: [{ role: "learner", content: "我不懂错误设计" }],
+  });
+  assert.match(prompt, /当前任务：工具契约/);
+  assert.match(prompt, /掌握度 65%/);
+  assert.match(prompt, /缺少下一步/);
+  assert.match(prompt, /学生：我不懂错误设计/);
+  assert.match(prompt, /学生当前问题：我下一步怎么办/);
+});

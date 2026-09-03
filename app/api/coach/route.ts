@@ -1,12 +1,14 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getCloudflareUser } from "../../auth";
 import { getDb } from "../../../db";
-import { conversations, evidence, learnerProfiles } from "../../../db/schema";
+import { competencyStates, conversations, evidence, learnerProfiles, learningTasks } from "../../../db/schema";
 import { databaseAIConfiguration } from "../../../lib/ai-settings";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { generateCoachReply, type CoachAttemptReporter } from "../../../lib/coach";
 import { retrieveKnowledge } from "../../../lib/knowledge-retrieval";
 import type { KnowledgeRetrievalMatch } from "../../../lib/knowledge-retrieval";
+import { rubricLabels } from "../../../lib/rubric";
+import { getCompetency } from "../../../curriculum/catalog";
 
 export async function POST(request: Request) {
   const user = await getCloudflareUser();
@@ -20,7 +22,22 @@ export async function POST(request: Request) {
   try {
     const db = getDb();
     await db.insert(learnerProfiles).values({ id: user.userId, displayName: user.displayName, learningGoal: "掌握 Agent Engineering", weeklyHours: 8, timezone: "Asia/Shanghai" }).onConflictDoNothing();
-    const [last] = await db.select({ score: evidence.score, content: evidence.content }).from(evidence).where(eq(evidence.learnerId, user.userId)).orderBy(desc(evidence.createdAt)).limit(1);
+    const [[profile], [task], states, recentEvidence, recentConversation] = await Promise.all([
+      db.select().from(learnerProfiles).where(eq(learnerProfiles.id, user.userId)).limit(1),
+      db.select().from(learningTasks).where(and(eq(learningTasks.learnerId, user.userId), eq(learningTasks.status, "active"))).orderBy(desc(learningTasks.updatedAt)).limit(1),
+      db.select().from(competencyStates).where(eq(competencyStates.learnerId, user.userId)).orderBy(desc(competencyStates.updatedAt)).limit(8),
+      db.select().from(evidence).where(eq(evidence.learnerId, user.userId)).orderBy(desc(evidence.createdAt)).limit(5),
+      db.select({ role: conversations.role, content: conversations.content }).from(conversations).where(eq(conversations.learnerId, user.userId)).orderBy(desc(conversations.createdAt)).limit(4),
+    ]);
+    const last = recentEvidence[0];
+    const learningContext = {
+      goal: profile?.learningGoal ?? "掌握 Agent Engineering",
+      currentProject: profile?.currentProject,
+      currentTask: task ? { title: task.title, competencyName: getCompetency(task.competencyId)?.name ?? task.competencyId, instruction: task.instruction, expectedOutput: task.expectedOutput, rubric: rubricLabels(task.rubricJson) } : null,
+      competencies: states.map((state) => ({ name: getCompetency(state.competencyId)?.name ?? state.competencyId, mastery: state.mastery, confidence: state.confidence, rationale: state.rationale })),
+      recentEvidence: recentEvidence.map((item) => ({ competencyName: getCompetency(item.competencyId)?.name ?? item.competencyId, type: item.type, score: item.score, feedback: item.feedback, content: item.content })),
+      recentConversation: recentConversation.reverse(),
+    };
     let aiEnvironment: Record<string, string | undefined> = process.env;
     let reportAttempt: CoachAttemptReporter | undefined;
     try {
@@ -32,7 +49,7 @@ export async function POST(request: Request) {
     let knowledge = { context: "", sources: [] as { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string }[], matches: [] as KnowledgeRetrievalMatch[], conflicts: [] as { key: string; title: string; versions: string[]; documentIds: string[]; preferredDocumentId: string | null; preferredVersion: string | null; preferenceReason: "authority" | "newer_version" | "uncertain" }[], retrievalMode: "unavailable" as string };
     try { knowledge = await retrieveKnowledge(message, 5, user.userId); }
     catch { /* The structured curriculum remains available before migrations or during retrieval outages. */ }
-    const reply = await generateCoachReply(`${message}\n近期证据：${last?.content ?? "无"}`, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge);
+    const reply = await generateCoachReply(message, last?.score ?? null, aiEnvironment, fetch, reportAttempt, knowledge, learningContext);
     const sourceByDocument = new Map(knowledge.sources.map((source) => [source.documentId, source]));
     const retrieval = { mode: knowledge.retrievalMode, conflicts: knowledge.conflicts, matches: knowledge.matches.map((match) => ({ ...match, ...sourceByDocument.get(match.documentId) })) };
     await db.batch([
