@@ -6,6 +6,7 @@ import { databaseAIConfiguration } from "../../../lib/ai-settings";
 import { apiError, databaseError } from "../../../lib/api-response";
 import { generateCoachReply, type CoachAttemptReporter } from "../../../lib/coach";
 import { createCoachTools } from "../../../lib/coach-tools";
+import { unresolvedCoachFeedback } from "../../../lib/coach-feedback";
 import { retrieveKnowledge } from "../../../lib/knowledge-retrieval";
 import type { KnowledgeRetrievalMatch } from "../../../lib/knowledge-retrieval";
 import { rubricLabels } from "../../../lib/rubric";
@@ -31,12 +32,7 @@ export async function POST(request: Request) {
       db.select({ role: conversations.role, content: conversations.content, metadataJson: conversations.metadataJson }).from(conversations).where(eq(conversations.learnerId, user.userId)).orderBy(desc(conversations.createdAt)).limit(8),
     ]);
     const last = recentEvidence[0];
-    const feedbackReasons: Record<string, string> = { inaccurate: "内容不准确", misunderstood: "没理解问题", unactionable: "步骤不可执行", irrelevant_source: "资料不相关" };
-    const unresolvedFeedback = recentConversation.flatMap((item) => {
-      if (item.role !== "coach") return [];
-      try { const feedback = (JSON.parse(item.metadataJson ?? "{}") as { userFeedback?: { rating?: string; reason?: string } }).userFeedback; return feedback?.rating === "unhelpful" ? [{ reason: feedbackReasons[feedback.reason ?? ""] ?? "未说明", answerSummary: item.content }] : []; }
-      catch { return []; }
-    }).slice(0, 3);
+    const unresolvedFeedback = unresolvedCoachFeedback(recentConversation);
     const learningContext = {
       goal: profile?.learningGoal ?? "掌握 Agent Engineering",
       currentProject: profile?.currentProject,

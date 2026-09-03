@@ -30,6 +30,7 @@ test("build contains the authenticated learning shell and Google login gate", as
   assert.match(runMonitor, /用户反馈/);
   assert.match(runMonitor, /回答渠道/);
   assert.match(runMonitor, /参考.*负反馈/);
+  assert.match(runMonitor, /修正后有效/);
   const coachChat = await readFile(new URL("../app/CoachChat.tsx", import.meta.url), "utf8");
   assert.match(coachChat, /这次回答解决问题了吗/);
   assert.match(coachChat, /步骤不可执行/);
