@@ -14,7 +14,7 @@ export type CoachReply = {
   retrievedSources?: { title: string; url: string | null; versionLabel: string | null; publishedAt?: string | null; fetchedAt?: string | null; trustLevel: string }[];
   runtime?: CoachRuntimeTrace;
 };
-export type CoachRuntimeTrace = { durationMs: number; attempts: { provider: ProviderName; outcome: "success" | "failure"; error?: string }[]; toolCalls: { id: string; name: string; outcome: "success" | "failure"; durationMs: number }[]; termination: "model" | "fallback" };
+export type CoachRuntimeTrace = { durationMs: number; attempts: { provider: ProviderName; outcome: "success" | "failure"; error?: string }[]; toolCalls: { id: string; name: string; outcome: "success" | "failure"; durationMs: number }[]; usage: { modelCalls: number; inputTokens: number; outputTokens: number; totalTokens: number }; termination: "model" | "fallback" };
 type KnowledgeConflict = { title: string; versions: string[]; preferredVersion?: string | null; preferenceReason?: "authority" | "newer_version" | "uncertain" };
 import { curriculumContext } from "./curriculum.ts";
 import { formatCoachLearningContext, type CoachLearningContext } from "./coach-context.ts";
@@ -71,7 +71,7 @@ function rotateKeys(provider: Provider): string[] {
 }
 
 type ToolCall = { id: string; name: string; input: Record<string, unknown> };
-type ProviderTurn = { text: string; toolCalls: ToolCall[]; rawAssistant: unknown };
+type ProviderTurn = { text: string; toolCalls: ToolCall[]; rawAssistant: unknown; usage: { inputTokens: number; outputTokens: number; totalTokens: number } };
 type ToolResult = { call: ToolCall; content: string };
 type ToolExchange = { turn: ProviderTurn; results: ToolResult[] };
 
@@ -109,18 +109,22 @@ async function fetchWithin(fetcher: typeof fetch, input: string, init: RequestIn
 }
 
 function providerTurn(provider: Provider, data: unknown): ProviderTurn {
-  if (!data || typeof data !== "object") return { text: "", toolCalls: [], rawAssistant: {} };
+  if (!data || typeof data !== "object") return { text: "", toolCalls: [], rawAssistant: {}, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
   if (provider.name === "anthropic") {
-    const content = (data as { content?: { type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[] }).content ?? [];
-    return { text: content.filter((item) => item.type === "text").map((item) => item.text ?? "").join("\n"), toolCalls: content.filter((item) => item.type === "tool_use" && item.id && item.name).map((item) => ({ id: item.id!, name: item.name!, input: item.input ?? {} })), rawAssistant: content };
+    const payload = data as { content?: { type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+    const content = payload.content ?? [];
+    const inputTokens = payload.usage?.input_tokens ?? 0; const outputTokens = payload.usage?.output_tokens ?? 0;
+    return { text: content.filter((item) => item.type === "text").map((item) => item.text ?? "").join("\n"), toolCalls: content.filter((item) => item.type === "tool_use" && item.id && item.name).map((item) => ({ id: item.id!, name: item.name!, input: item.input ?? {} })), rawAssistant: content, usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens } };
   }
-  const message = (data as { choices?: { message?: { role?: string; content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[] }).choices?.[0]?.message ?? {};
+  const payload = data as { choices?: { message?: { role?: string; content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+  const message = payload.choices?.[0]?.message ?? {};
   const toolCalls = (message.tool_calls ?? []).flatMap((item) => {
     if (!item.id || !item.function?.name) return [];
     try { return [{ id: item.id, name: item.function.name, input: JSON.parse(item.function.arguments ?? "{}") as Record<string, unknown> }]; }
     catch { return [{ id: item.id, name: item.function.name, input: {} }]; }
   });
-  return { text: message.content ?? "", toolCalls, rawAssistant: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls } };
+  const inputTokens = payload.usage?.prompt_tokens ?? 0; const outputTokens = payload.usage?.completion_tokens ?? 0;
+  return { text: message.content ?? "", toolCalls, rawAssistant: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls }, usage: { inputTokens, outputTokens, totalTokens: payload.usage?.total_tokens ?? inputTokens + outputTokens } };
 }
 
 async function executeToolCalls(runtime: CoachToolRuntime, calls: ToolCall[], trace: CoachRuntimeTrace["toolCalls"]): Promise<ToolResult[]> {
@@ -152,7 +156,9 @@ export async function generateCoachReply(message: string, priorScore: number | n
   const startedAt = Date.now();
   const attempts: CoachRuntimeTrace["attempts"] = [];
   const toolCalls: CoachRuntimeTrace["toolCalls"] = [];
-  const runtime = (termination: CoachRuntimeTrace["termination"]): CoachRuntimeTrace => ({ durationMs: Date.now() - startedAt, attempts, toolCalls, termination });
+  const usage: CoachRuntimeTrace["usage"] = { modelCalls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  const addUsage = (turn: ProviderTurn) => { usage.modelCalls += 1; usage.inputTokens += turn.usage.inputTokens; usage.outputTokens += turn.usage.outputTokens; usage.totalTokens += turn.usage.totalTokens; };
+  const runtime = (termination: CoachRuntimeTrace["termination"]): CoachRuntimeTrace => ({ durationMs: Date.now() - startedAt, attempts, toolCalls, usage, termination });
   const recordAttempt = async (attempt: CoachAttempt) => { attempts.push({ provider: attempt.provider, outcome: attempt.outcome, error: attempt.error }); await reportAttempt(reporter, attempt); };
   const guidance = classifyCoachQuestion(message);
   const course = curriculumContext(message);
@@ -174,6 +180,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
           continue;
         }
         let turn = providerTurn(provider, await response.json());
+        addUsage(turn);
         const exchanges: ToolExchange[] = [];
         while (turn.toolCalls.length && tools && exchanges.length < 3) {
           const results = await executeToolCalls(tools, turn.toolCalls, toolCalls);
@@ -186,6 +193,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
             continue;
           }
           turn = providerTurn(provider, await response.json());
+          addUsage(turn);
         }
         const reply = parseReply(turn.text);
         if (reply) {

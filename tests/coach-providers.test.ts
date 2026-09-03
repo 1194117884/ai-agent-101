@@ -138,13 +138,14 @@ test("returns OpenAI-compatible tool results with the original tool call id", as
   const result = await generateCoachReply("Day 3 学什么？", null, { OPENAI_API_KEYS: "key", AI_PROVIDER_ORDER: "openai" }, async (_input, init) => {
     const body = JSON.parse(String(init?.body));
     bodies.push(body);
-    if (bodies.length === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [{ id: "call_exact_123", type: "function", function: { name: "get_curriculum_unit", arguments: "{\"day\":3}" } }] } }] });
-    return Response.json({ choices: [{ message: { content: reply } }] });
+    if (bodies.length === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [{ id: "call_exact_123", type: "function", function: { name: "get_curriculum_unit", arguments: "{\"day\":3}" } }] } }], usage: { prompt_tokens: 120, completion_tokens: 15, total_tokens: 135 } });
+    return Response.json({ choices: [{ message: { content: reply } }], usage: { prompt_tokens: 180, completion_tokens: 45, total_tokens: 225 } });
   }, undefined, undefined, undefined, tools);
   assert.equal(result.delivery?.mode, "model");
   assert.equal(result.runtime?.termination, "model");
   assert.deepEqual(result.runtime?.attempts.map(({ provider, outcome }) => ({ provider, outcome })), [{ provider: "openai", outcome: "success" }]);
   assert.deepEqual(result.runtime?.toolCalls.map(({ id, name, outcome }) => ({ id, name, outcome })), [{ id: "call_exact_123", name: "get_curriculum_unit", outcome: "success" }]);
+  assert.deepEqual(result.runtime?.usage, { modelCalls: 2, inputTokens: 300, outputTokens: 60, totalTokens: 360 });
   const firstTools = bodies[0].tools as { function: { name: string } }[];
   const secondMessages = bodies[1].messages as { role: string; tool_call_id?: string; content?: string | null; tool_calls?: { id: string }[] }[];
   assert.equal(firstTools[0].function.name, "get_curriculum_unit");
@@ -158,17 +159,18 @@ test("returns Anthropic tool results with the original tool_use id", async () =>
     definitions: [{ name: "get_learning_context", description: "读取学习状态", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false } }],
     execute: async () => ({ mastery: 65 }),
   };
-  await generateCoachReply("我哪里薄弱？", null, { ANTHROPIC_API_KEYS: "key", AI_PROVIDER_ORDER: "anthropic" }, async (_input, init) => {
+  const result = await generateCoachReply("我哪里薄弱？", null, { ANTHROPIC_API_KEYS: "key", AI_PROVIDER_ORDER: "anthropic" }, async (_input, init) => {
     const body = JSON.parse(String(init?.body));
     bodies.push(body);
-    if (bodies.length === 1) return Response.json({ content: [{ type: "tool_use", id: "toolu_exact_456", name: "get_learning_context", input: {} }] });
-    return Response.json({ content: [{ type: "text", text: reply }] });
+    if (bodies.length === 1) return Response.json({ content: [{ type: "tool_use", id: "toolu_exact_456", name: "get_learning_context", input: {} }], usage: { input_tokens: 80, output_tokens: 10 } });
+    return Response.json({ content: [{ type: "text", text: reply }], usage: { input_tokens: 110, output_tokens: 35 } });
   }, undefined, undefined, undefined, tools);
   const firstTools = bodies[0].tools as { name: string }[];
   const secondMessages = bodies[1].messages as { content: { type: string; id?: string; tool_use_id?: string; content?: string }[] }[];
   assert.equal(firstTools[0].name, "get_learning_context");
   assert.deepEqual(secondMessages.at(-1)?.content[0], { type: "tool_result", tool_use_id: "toolu_exact_456", content: JSON.stringify({ mastery: 65 }) });
   assert.equal(secondMessages.at(-2)?.content[0].id, "toolu_exact_456");
+  assert.deepEqual(result.runtime?.usage, { modelCalls: 2, inputTokens: 190, outputTokens: 45, totalTokens: 235 });
 });
 
 test("supports bounded sequential tool rounds while retaining prior ids", async () => {
