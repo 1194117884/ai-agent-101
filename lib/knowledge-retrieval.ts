@@ -5,7 +5,7 @@ import { knowledgeLexicalScore } from "./knowledge";
 import { detectKnowledgeConflicts, knowledgeRankingScore, type KnowledgeSource } from "./knowledge-conflicts";
 import { getKnowledgeVectorProvider } from "./knowledge-vector";
 
-type Candidate = { vectorId: string; documentId: string; content: string; title: string; url: string; versionLabel: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
+type Candidate = { vectorId: string; documentId: string; content: string; title: string; url: string; versionLabel: string | null; publishedAt: string | null; fetchedAt: string | null; trustLevel: string; vectorScore: number; lexicalScore: number };
 export type KnowledgeRetrievalMatch = { rank: number; vectorId: string; documentId: string; title: string; excerpt: string; vectorScore: number; lexicalScore: number; authorityBoost: number; combinedScore: number; relativeRelevance: number };
 export async function retrieveKnowledge(query: string, limit = 5, learnerId?: string) {
   const startedAt = Date.now();
@@ -16,7 +16,7 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
     vectorScores = await getKnowledgeVectorProvider().query(query, 10);
   } catch (error) { vectorError = error instanceof Error ? error.message.slice(0, 240) : "未知向量错误"; }
 
-  const baseQuery = () => db.select({ vectorId: knowledgeChunks.vectorId, documentId: sourceDocuments.id, content: knowledgeChunks.content, title: sourceDocuments.title, url: sourceDocuments.url, versionLabel: sourceDocuments.versionLabel, trustLevel: sourceDocuments.trustLevel }).from(knowledgeChunks).innerJoin(sourceDocuments, eq(knowledgeChunks.sourceDocumentId, sourceDocuments.id));
+  const baseQuery = () => db.select({ vectorId: knowledgeChunks.vectorId, documentId: sourceDocuments.id, content: knowledgeChunks.content, title: sourceDocuments.title, url: sourceDocuments.url, versionLabel: sourceDocuments.versionLabel, publishedAt: sourceDocuments.publishedAt, fetchedAt: sourceDocuments.fetchedAt, trustLevel: sourceDocuments.trustLevel }).from(knowledgeChunks).innerJoin(sourceDocuments, eq(knowledgeChunks.sourceDocumentId, sourceDocuments.id));
   const approved = and(eq(sourceDocuments.status, "approved"), or(eq(sourceDocuments.ingestionStatus, "indexed"), eq(sourceDocuments.ingestionStatus, "lexical")), or(eq(knowledgeChunks.status, "indexed"), eq(knowledgeChunks.status, "lexical")));
   const [semanticRows, lexicalRows] = await Promise.all([
     vectorScores.size ? baseQuery().where(and(approved, inArray(knowledgeChunks.vectorId, [...vectorScores.keys()]))) : Promise.resolve([]),
@@ -39,9 +39,9 @@ export async function retrieveKnowledge(query: string, limit = 5, learnerId?: st
       matchesJson: JSON.stringify(matches),
     });
   } catch { /* Observability must never block the learner response. */ }
-  const sources: KnowledgeSource[] = ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, trustLevel: item.trustLevel }));
+  const sources: KnowledgeSource[] = ranked.map((item) => ({ documentId: item.documentId, title: item.title, url: item.url.startsWith("manual://") ? null : item.url, versionLabel: item.versionLabel, publishedAt: item.publishedAt, fetchedAt: item.fetchedAt, trustLevel: item.trustLevel }));
   return {
-    context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""} [可信等级: ${item.trustLevel}]\n${item.content}`).join("\n\n"),
+    context: ranked.map((item, index) => `[资料 ${index + 1}] ${item.title}${item.versionLabel ? `（${item.versionLabel}）` : ""} [可信等级: ${item.trustLevel}]${item.publishedAt ? ` [发布: ${item.publishedAt.slice(0, 10)}]` : ""}${item.fetchedAt ? ` [录入: ${item.fetchedAt.slice(0, 10)}]` : ""}\n${item.content}`).join("\n\n"),
     sources,
     conflicts: detectKnowledgeConflicts(sources),
     matches,

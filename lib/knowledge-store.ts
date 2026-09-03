@@ -8,7 +8,7 @@ import { FREE_VECTOR_CAPACITY, getKnowledgeVectorProvider, KNOWLEDGE_VECTOR_DIME
 export type { KnowledgeDocumentInput } from "./knowledge";
 
 export async function listKnowledgeDocuments() {
-  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, versionLabel: sourceDocuments.versionLabel, reviewedAt: sourceDocuments.reviewedAt, archivedAt: sourceDocuments.archivedAt, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
+  return getDb().select({ id: sourceDocuments.id, title: sourceDocuments.title, url: sourceDocuments.url, sourceType: sourceDocuments.sourceType, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, versionLabel: sourceDocuments.versionLabel, publishedAt: sourceDocuments.publishedAt, fetchedAt: sourceDocuments.fetchedAt, reviewedAt: sourceDocuments.reviewedAt, archivedAt: sourceDocuments.archivedAt, trustLevel: sourceDocuments.trustLevel, status: sourceDocuments.status, topicIdsJson: sourceDocuments.topicIdsJson, summary: sourceDocuments.summary, content: sourceDocuments.content, ingestionStatus: sourceDocuments.ingestionStatus, chunkCount: sourceDocuments.chunkCount, lastIndexedAt: sourceDocuments.lastIndexedAt, ingestionError: sourceDocuments.ingestionError, updatedAt: sourceDocuments.updatedAt }).from(sourceDocuments).orderBy(desc(sourceDocuments.updatedAt));
 }
 
 export async function getKnowledgeStats() {
@@ -137,9 +137,9 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
   const content = validateKnowledgeDocument(input);
   const db = getDb();
   const id = input.id ?? crypto.randomUUID();
-  let existingMetadata: { sourceFileName: string | null; sourceMimeType: string | null; submittedBy: string | null; submissionId: string | null } | undefined;
+  let existingMetadata: { sourceFileName: string | null; sourceMimeType: string | null; submittedBy: string | null; submissionId: string | null; fetchedAt: string | null } | undefined;
   if (input.id) {
-    const [existing] = await db.select({ id: sourceDocuments.id, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, submissionId: sourceDocuments.submissionId }).from(sourceDocuments).where(eq(sourceDocuments.id, input.id)).limit(1);
+    const [existing] = await db.select({ id: sourceDocuments.id, sourceFileName: sourceDocuments.sourceFileName, sourceMimeType: sourceDocuments.sourceMimeType, submittedBy: sourceDocuments.submittedBy, submissionId: sourceDocuments.submissionId, fetchedAt: sourceDocuments.fetchedAt }).from(sourceDocuments).where(eq(sourceDocuments.id, input.id)).limit(1);
     if (!existing) throw new Error("资料不存在，请刷新后重试。");
     existingMetadata = existing;
   }
@@ -148,7 +148,8 @@ export async function saveKnowledgeDocument(input: KnowledgeDocumentInput) {
     const [duplicate] = await db.select({ id: sourceDocuments.id, ingestionStatus: sourceDocuments.ingestionStatus }).from(sourceDocuments).where(eq(sourceDocuments.contentHash, contentHash)).limit(1);
     if (duplicate) return { id: duplicate.id, duplicate: true, needsIndex: !["indexed", "lexical"].includes(duplicate.ingestionStatus) };
   }
-  const values = { title: input.title.trim(), url: input.url?.trim() || `${input.sourceType === "upload" ? "upload" : "manual"}://${id}`, sourceType: input.sourceType, sourceFileName: input.sourceFileName?.slice(0, 240) || existingMetadata?.sourceFileName || null, sourceMimeType: input.sourceMimeType?.slice(0, 160) || existingMetadata?.sourceMimeType || null, submittedBy: input.submittedBy?.slice(0, 200) || existingMetadata?.submittedBy || null, submissionId: input.submissionId || existingMetadata?.submissionId || null, versionLabel: input.versionLabel?.trim() || null, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const values = { title: input.title.trim(), url: input.url?.trim() || `${input.sourceType === "upload" ? "upload" : "manual"}://${id}`, sourceType: input.sourceType, sourceFileName: input.sourceFileName?.slice(0, 240) || existingMetadata?.sourceFileName || null, sourceMimeType: input.sourceMimeType?.slice(0, 160) || existingMetadata?.sourceMimeType || null, submittedBy: input.submittedBy?.slice(0, 200) || existingMetadata?.submittedBy || null, submissionId: input.submissionId || existingMetadata?.submissionId || null, versionLabel: input.versionLabel?.trim() || null, publishedAt: input.publishedAt ? new Date(input.publishedAt).toISOString() : null, fetchedAt: input.fetchedAt ? new Date(input.fetchedAt).toISOString() : existingMetadata?.fetchedAt ?? now, trustLevel: input.trustLevel, status: input.status, topicIdsJson: JSON.stringify([...new Set(input.topicIds.map((item) => item.trim()).filter(Boolean))]), summary: input.summary?.trim() || null, content, contentHash, ingestionStatus: "pending", chunkCount: 0, lastIndexedAt: null, ingestionError: null, updatedAt: now };
   if (input.id) await db.update(sourceDocuments).set(values).where(eq(sourceDocuments.id, id));
   else await db.insert(sourceDocuments).values({ id, reviewedAt: input.status === "approved" ? new Date().toISOString() : null, ...values });
   return { id, duplicate: false, needsIndex: input.status === "approved" };
@@ -161,8 +162,12 @@ export async function refreshKnowledgeDocument(id: string) {
   if (document.sourceType !== "web" || document.url.startsWith("manual://")) throw new Error("只有网页资料可以重新抓取。");
   const page = await fetchPublicKnowledgePage(document.url);
   const contentHash = await sha256(page.content);
-  if (contentHash === document.contentHash) return { changed: false, id, title: document.title };
-  const saved = await saveKnowledgeDocument({ id, title: document.title, url: page.url, sourceType: "web", versionLabel: document.versionLabel ?? undefined, trustLevel: document.trustLevel as KnowledgeDocumentInput["trustLevel"], status: document.status as KnowledgeDocumentInput["status"], topicIds: safeStringArray(document.topicIdsJson), summary: document.summary ?? undefined, content: page.content });
+  if (contentHash === document.contentHash) {
+    const fetchedAt = new Date().toISOString();
+    await db.update(sourceDocuments).set({ fetchedAt, updatedAt: fetchedAt }).where(eq(sourceDocuments.id, id));
+    return { changed: false, id, title: document.title };
+  }
+  const saved = await saveKnowledgeDocument({ id, title: document.title, url: page.url, sourceType: "web", versionLabel: document.versionLabel ?? undefined, publishedAt: document.publishedAt ?? undefined, fetchedAt: new Date().toISOString(), trustLevel: document.trustLevel as KnowledgeDocumentInput["trustLevel"], status: document.status as KnowledgeDocumentInput["status"], topicIds: safeStringArray(document.topicIdsJson), summary: document.summary ?? undefined, content: page.content });
   return { changed: true, id: saved.id, title: document.title };
 }
 

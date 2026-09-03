@@ -3,7 +3,7 @@ export const DEFAULT_CHUNK_CHARS = 1_200;
 export const DEFAULT_CHUNK_OVERLAP = 160;
 
 export type KnowledgeChunkInput = { ordinal: number; content: string; tokenEstimate: number };
-export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note" | "upload"; sourceFileName?: string; sourceMimeType?: string; submittedBy?: string; submissionId?: string; versionLabel?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
+export type KnowledgeDocumentInput = { id?: string; title: string; url?: string; sourceType: "manual" | "web" | "note" | "upload"; sourceFileName?: string; sourceMimeType?: string; submittedBy?: string; submissionId?: string; versionLabel?: string; publishedAt?: string; fetchedAt?: string; trustLevel: "primary" | "trusted" | "reference"; status: "draft" | "approved" | "archived"; topicIds: string[]; summary?: string; content: string };
 
 export function normalizeKnowledgeText(value: string) {
   return value.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -46,6 +46,7 @@ export function validateKnowledgeDocument(input: KnowledgeDocumentInput) {
     const url = new URL(input.url.trim());
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) throw new Error("资料 URL 必须是无账号信息的 HTTP(S) 地址。");
   }
+  if (input.publishedAt && Number.isNaN(new Date(input.publishedAt).getTime())) throw new Error("资料发布日期无效。");
   return content;
 }
 

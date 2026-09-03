@@ -11,7 +11,7 @@ export type CoachReply = {
   focus: string;
   source: string;
   delivery?: { mode: "model" | "fallback"; provider?: ProviderName; reason?: "not_configured" | "provider_error" };
-  retrievedSources?: { title: string; url: string | null; versionLabel: string | null; trustLevel: string }[];
+  retrievedSources?: { title: string; url: string | null; versionLabel: string | null; publishedAt?: string | null; fetchedAt?: string | null; trustLevel: string }[];
 };
 type KnowledgeConflict = { title: string; versions: string[]; preferredVersion?: string | null; preferenceReason?: "authority" | "newer_version" | "uncertain" };
 import { curriculumContext } from "./curriculum.ts";

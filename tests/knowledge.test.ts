@@ -26,6 +26,8 @@ test("validates review metadata and document size", () => {
   assert.doesNotThrow(() => validateKnowledgeDocument(valid));
   assert.throws(() => validateKnowledgeDocument({ ...valid, url: "file:///etc/passwd" }), /HTTP/);
   assert.throws(() => validateKnowledgeDocument({ ...valid, content: "x".repeat(MAX_DOCUMENT_CHARS + 1) }), /不能超过/);
+  assert.throws(() => validateKnowledgeDocument({ ...valid, publishedAt: "not-a-date" }), /发布日期/);
+  assert.doesNotThrow(() => validateKnowledgeDocument({ ...valid, publishedAt: "2026-08-21" }));
 });
 
 test("sanitizes imported HTML and derives useful metadata", () => {

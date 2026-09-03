@@ -1,4 +1,4 @@
-export type KnowledgeSource = { documentId: string; title: string; url: string | null; versionLabel: string | null; trustLevel: string };
+export type KnowledgeSource = { documentId: string; title: string; url: string | null; versionLabel: string | null; publishedAt?: string | null; fetchedAt?: string | null; trustLevel: string };
 export type KnowledgeConflict = { key: string; title: string; versions: string[]; documentIds: string[]; preferredDocumentId: string | null; preferredVersion: string | null; preferenceReason: "authority" | "newer_version" | "uncertain" };
 
 const TRUST_BOOST: Record<string, number> = { primary: 0.08, trusted: 0.04, reference: 0 };
