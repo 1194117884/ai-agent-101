@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { rubricLabels } from "../lib/rubric.ts";
 import { assessmentCatalog, gradeAssessment } from "../lib/assessment.ts";
+import { buildStageReport } from "../lib/stage-report.ts";
 
 const completeAnswers: Record<string, string> = {
   "concept-tool-contract": "description 说明何时选择和调用工具；schema 定义参数字段类型；失败返回给出错误原因和恢复的下一步。三者分别负责选择、正确调用和恢复，共同形成边界。",
@@ -41,4 +42,16 @@ test("unknown rubric versions are rejected", () => {
 test("dashboard renders rubric objects as labels", () => {
   assert.deepEqual(rubricLabels(JSON.stringify([{ id: "schema", label: "schema 约束输入" }, "明确失败返回", { id: "invalid" }])), ["schema 约束输入", "明确失败返回"]);
   assert.deepEqual(rubricLabels("not-json"), []);
+});
+
+test("stage report groups competencies and attaches recent evidence", () => {
+  const weakness = (level: "strong" | "watch" | "weak", reasons: string[]) => ({ level, evidenceCount: 1, recentScores: [70], reasons, recommendation: "继续练习" });
+  const report = buildStageReport([
+    { competencyId: "tools", name: "工具设计", mastery: 85, confidence: 70, weakness: weakness("strong", ["证据稳定"]) },
+    { competencyId: "eval", name: "评测", mastery: 55, confidence: 40, weakness: weakness("weak", ["掌握度仅 55%"]) },
+  ], [{ id: "e1", competencyId: "eval", type: "quiz", score: 55, feedback: "缺少复现步骤", createdAt: "2026-09-01" }]);
+  assert.equal(report.mastered[0].name, "工具设计");
+  assert.equal(report.weak[0].evidence[0].feedback, "缺少复现步骤");
+  assert.match(report.nextStageAdvice, /评测/);
+  assert.match(report.summary, /1 项稳定.*1 项薄弱/);
 });

@@ -5,6 +5,7 @@ import { competencies, competencyStates, conversations, evidence, learnerProfile
 import { rubricLabels } from "../../../lib/rubric";
 import { analyzeWeakness } from "../../../lib/weakness-analysis";
 import { getCompetency } from "../../../curriculum/catalog";
+import { buildStageReport } from "../../../lib/stage-report";
 
 export async function GET() {
   const user = await getCloudflareUser();
@@ -21,14 +22,16 @@ export async function GET() {
   const names = competencyIds.length ? await db.select({ id: competencies.id, name: competencies.name }).from(competencies).where(inArray(competencies.id, competencyIds)) : [];
   const nameMap = Object.fromEntries(names.map((item) => [item.id, item.name]));
   const stateMap = new Map(states.map((state) => [state.competencyId, state]));
+  const competencyViews = states.map((state) => {
+    const unmetPrerequisites = (getCompetency(state.competencyId)?.prerequisites ?? []).filter((id) => (stateMap.get(id)?.mastery ?? 0) < 60).map((id) => getCompetency(id)?.name ?? id);
+    const activeTaskCreatedAt = task?.competencyId === state.competencyId ? task.createdAt : null;
+    return { ...state, name: nameMap[state.competencyId] ?? state.competencyId, weakness: analyzeWeakness(state, recentEvidence, new Date(), { unmetPrerequisites, activeTaskCreatedAt }) };
+  });
   return Response.json({
     profile: profile ?? { displayName: user.displayName, learningGoal: "掌握 Agent Engineering", weeklyHours: 8 },
     task: task ? { ...task, rubric: rubricLabels(task.rubricJson) } : null,
-    competencies: states.map((state) => {
-      const unmetPrerequisites = (getCompetency(state.competencyId)?.prerequisites ?? []).filter((id) => (stateMap.get(id)?.mastery ?? 0) < 60).map((id) => getCompetency(id)?.name ?? id);
-      const activeTaskCreatedAt = task?.competencyId === state.competencyId ? task.createdAt : null;
-      return { ...state, name: nameMap[state.competencyId] ?? state.competencyId, weakness: analyzeWeakness(state, recentEvidence, new Date(), { unmetPrerequisites, activeTaskCreatedAt }) };
-    }),
+    competencies: competencyViews,
+    stageReport: buildStageReport(competencyViews, recentEvidence),
     evidence: recentEvidence.slice(0, 8).map((item) => ({ ...item, competencyName: nameMap[item.competencyId] ?? item.competencyId })),
     conversations: recentConversations.reverse(),
   });
