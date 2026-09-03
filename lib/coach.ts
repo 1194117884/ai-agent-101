@@ -5,6 +5,9 @@ export type CoachReply = {
   feedback: string;
   nextTask: string;
   question: string;
+  issueType?: CoachIssueType;
+  issueLabel?: string;
+  teachingMode?: "question" | "hint" | "example";
   focus: string;
   source: string;
   delivery?: { mode: "model" | "fallback"; provider?: ProviderName; reason?: "not_configured" | "provider_error" };
@@ -13,6 +16,7 @@ export type CoachReply = {
 type KnowledgeConflict = { title: string; versions: string[]; preferredVersion?: string | null; preferenceReason?: "authority" | "newer_version" | "uncertain" };
 import { curriculumContext } from "./curriculum.ts";
 import { formatCoachLearningContext, type CoachLearningContext } from "./coach-context.ts";
+import { classifyCoachQuestion, type CoachIssueType } from "./coach-guidance.ts";
 
 type ProviderName = "anthropic" | "openai" | "deepseek" | "openrouter";
 type Environment = Record<string, string | undefined>;
@@ -110,11 +114,12 @@ async function reportAttempt(reporter: CoachAttemptReporter | undefined, attempt
 }
 
 export async function generateCoachReply(message: string, priorScore: number | null, env: Environment = process.env, fetcher: typeof fetch = fetch, reporter?: CoachAttemptReporter, knowledge?: { context: string; sources: CoachReply["retrievedSources"]; conflicts?: KnowledgeConflict[] }, learningContext?: CoachLearningContext): Promise<CoachReply> {
+  const guidance = classifyCoachQuestion(message);
   const course = curriculumContext(message);
   const retrieved = knowledge?.context ? `\n\n已发布知识库片段：\n${knowledge.context}` : "";
   const conflictInstruction = knowledge?.conflicts?.length ? `\n检测到同一资料的多个版本：${knowledge.conflicts.map((item) => `${item.title}（${item.versions.join(" / ")}；${item.preferredVersion ? `系统建议 ${item.preferredVersion}，依据：${item.preferenceReason === "authority" ? "可信等级" : "较新版本"}` : "系统无法可靠判断优先版本"}）`).join("；")}。回答必须明确指出版本差异；可以采用系统建议，但不得隐瞒冲突；无法判断时并列说明，不得混合成单一断言。` : "";
   const learner = formatCoachLearningContext(learningContext);
-  const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n相关课程：\n${course.context}${retrieved}${conflictInstruction}${learner}\n\n学生当前问题：${message}\n回答必须结合学习者上下文，并基于上述课程和知识库片段；不得声称使用未提供的资料。若问题与当前任务有关，优先帮助完成当前任务。source 填写最主要的课程或资料标题。`;
+  const prompt = `课程版本：2026.08.21。最近评分：${priorScore ?? "无"}。\n答疑分类：${guidance.label}。教学方式：${guidance.teachingMode}。执行要求：${guidance.instruction}\n相关课程：\n${course.context}${retrieved}${conflictInstruction}${learner}\n\n学生当前问题：${message}\n回答必须结合学习者上下文，并基于上述课程和知识库片段；不得声称使用未提供的资料。若问题与当前任务有关，优先帮助完成当前任务。source 填写最主要的课程或资料标题。`;
   const providers = configuredProviders(env);
   const attemptTimeoutMs = timeoutSetting(env.COACH_PROVIDER_TIMEOUT_MS, 10_000, 30_000);
   const deadline = Date.now() + timeoutSetting(env.COACH_TOTAL_TIMEOUT_MS, 24_000, 45_000);
@@ -131,7 +136,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
         const reply = parseReply(responseText(provider, await response.json()));
         if (reply) {
           await reportAttempt(reporter, { provider: provider.name, key, outcome: "success" });
-          return { ...reply, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };
+          return { ...reply, issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "model", provider: provider.name } };
         }
         await reportAttempt(reporter, { provider: provider.name, key, outcome: "failure", error: "INVALID_RESPONSE" });
       } catch (error) {
@@ -140,7 +145,7 @@ export async function generateCoachReply(message: string, priorScore: number | n
       }
     }
   }
-  return { ...coach(message, priorScore), retrievedSources: knowledge?.sources ?? [], delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
+  return { ...coach(message, priorScore), issueType: guidance.issueType, issueLabel: guidance.label, teachingMode: guidance.teachingMode, retrievedSources: knowledge?.sources ?? [], delivery: { mode: "fallback", reason: providers.length ? "provider_error" : "not_configured" } };
 }
 
 export function coach(message: string, priorScore: number | null): CoachReply {
